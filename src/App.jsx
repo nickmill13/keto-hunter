@@ -149,41 +149,42 @@ export default function App() {
     return '$'.repeat(level);
   };
 
-  const submitReview = async () => {
-    if (!reviewForm.userName.trim() || !reviewForm.comment.trim()) {
-      alert('Please fill in your name and review');
-      return;
-    }
+const submitReview = async () => {
+  if (!reviewForm.userName.trim() || !reviewForm.comment.trim()) {
+    alert('Please fill in your name and review');
+    return;
+  }
 
-    try {
-     const response = await fetch('https://wholesome-magic-production-f9c3.up.railway.app/api/submit-review', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          restaurantId: selectedRestaurant.id,
-          ...reviewForm
-        })
-      });
+  try {
+    const response = await fetch('https://wholesome-magic-production-f9c3.up.railway.app/api/submit-review', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        restaurantId: selectedRestaurant.id,
+        restaurantName: selectedRestaurant.name, // Add this line
+        ...reviewForm
+      })
+    });
 
-      if (response.ok) {
-        alert('Thank you for your keto review!');
-        setShowReviewModal(false);
-        setReviewForm({
-          rating: 5,
-          ketoRating: 5,
-          comment: '',
-          menuItems: '',
-          userName: ''
-        });
-      }
-    } catch (err) {
-      console.error('Error submitting review:', err);
-      alert('Review submitted! (Demo mode - not actually saved)');
+    if (response.ok) {
+      alert('Thank you for your keto review!');
       setShowReviewModal(false);
+      setReviewForm({
+        rating: 5,
+        ketoRating: 5,
+        comment: '',
+        menuItems: '',
+        userName: ''
+      });
     }
-  };
+  } catch (err) {
+    console.error('Error submitting review:', err);
+    alert('Failed to submit review. Please try again.');
+    setShowReviewModal(false);
+  }
+};
 
   const getDemoRestaurants = () => [
     {
