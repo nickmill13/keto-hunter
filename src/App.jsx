@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Search, MapPin, Utensils, Star, Navigation, Loader, Filter, X, MessageSquare, Send, Award, TrendingUp } from 'lucide-react';
 
@@ -10,6 +9,9 @@ export default function App() {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedRestaurant, setSelectedRestaurant] = useState(null);
   const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviews, setReviews] = useState([]);
+  const [loadingReviews, setLoadingReviews] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
   
   const [filters, setFilters] = useState({
     maxDistance: 10,
@@ -149,42 +151,60 @@ export default function App() {
     return '$'.repeat(level);
   };
 
-const submitReview = async () => {
-  if (!reviewForm.userName.trim() || !reviewForm.comment.trim()) {
-    alert('Please fill in your name and review');
-    return;
-  }
-
-  try {
-    const response = await fetch('https://wholesome-magic-production-f9c3.up.railway.app/api/submit-review', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        restaurantId: selectedRestaurant.id,
-        restaurantName: selectedRestaurant.name, // Add this line
-        ...reviewForm
-      })
-    });
-
-    if (response.ok) {
-      alert('Thank you for your keto review!');
-      setShowReviewModal(false);
-      setReviewForm({
-        rating: 5,
-        ketoRating: 5,
-        comment: '',
-        menuItems: '',
-        userName: ''
-      });
+  const loadReviews = async (restaurantId) => {
+    setLoadingReviews(true);
+    setShowDetailsModal(true);
+    
+    try {
+      const response = await fetch(
+        `https://wholesome-magic-production-f9c3.up.railway.app/api/reviews/${restaurantId}`
+      );
+      const data = await response.json();
+      setReviews(data.reviews || []);
+    } catch (error) {
+      console.error('Error loading reviews:', error);
+      setReviews([]);
+    } finally {
+      setLoadingReviews(false);
     }
-  } catch (err) {
-    console.error('Error submitting review:', err);
-    alert('Failed to submit review. Please try again.');
-    setShowReviewModal(false);
-  }
-};
+  };
+
+  const submitReview = async () => {
+    if (!reviewForm.userName.trim() || !reviewForm.comment.trim()) {
+      alert('Please fill in your name and review');
+      return;
+    }
+
+    try {
+      const response = await fetch('https://wholesome-magic-production-f9c3.up.railway.app/api/submit-review', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          restaurantId: selectedRestaurant.id,
+          restaurantName: selectedRestaurant.name,
+          ...reviewForm
+        })
+      });
+
+      if (response.ok) {
+        alert('Thank you for your keto review!');
+        setShowReviewModal(false);
+        setReviewForm({
+          rating: 5,
+          ketoRating: 5,
+          comment: '',
+          menuItems: '',
+          userName: ''
+        });
+      }
+    } catch (err) {
+      console.error('Error submitting review:', err);
+      alert('Failed to submit review. Please try again.');
+      setShowReviewModal(false);
+    }
+  };
 
   const getDemoRestaurants = () => [
     {
@@ -543,8 +563,14 @@ const submitReview = async () => {
                   </div>
 
                   <div className="flex gap-2 mt-4">
-                    <button className="flex-1 bg-gradient-to-r from-orange-500 to-red-500 text-white py-3 rounded-xl hover:from-orange-600 hover:to-red-600 transition font-bold shadow-md hover:shadow-lg">
-                      View Details
+                    <button 
+                      onClick={() => {
+                        setSelectedRestaurant(restaurant);
+                        loadReviews(restaurant.id);
+                      }}
+                      className="flex-1 bg-gradient-to-r from-orange-500 to-red-500 text-white py-3 rounded-xl hover:from-orange-600 hover:to-red-600 transition font-bold shadow-md hover:shadow-lg"
+                    >
+                      View Details & Reviews
                     </button>
                     <button
                       onClick={() => {
@@ -574,6 +600,7 @@ const submitReview = async () => {
         )}
       </div>
 
+      {/* Review Modal */}
       {showReviewModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto shadow-2xl border-2 border-orange-200">
@@ -687,6 +714,127 @@ const submitReview = async () => {
           </div>
         </div>
       )}
+
+      {/* Restaurant Details & Reviews Modal */}
+      {showDetailsModal && selectedRestaurant && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto shadow-2xl border-2 border-orange-200">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-2xl font-black text-gray-800">
+                {selectedRestaurant.name}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowDetailsModal(false);
+                  setReviews([]);
+                }}
+                className="text-gray-400 hover:text-gray-600 transition"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <p className="text-gray-600 mb-2">
+                <strong>Address:</strong> {selectedRestaurant.address}
+              </p>
+              <p className="text-gray-600 mb-2">
+                <strong>Distance:</strong> {selectedRestaurant.distance} miles
+              </p>
+              <p className="text-gray-600 mb-2">
+                <strong>Cuisine:</strong> {selectedRestaurant.cuisine}
+              </p>
+              <p className="text-gray-600 mb-4">
+                <strong>Price:</strong> {getPriceSymbol(selectedRestaurant.priceLevel)}
+              </p>
+
+              <div className="bg-gradient-to-r from-orange-50 to-red-50 p-3 rounded-xl border-2 border-orange-200">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-gray-700 flex items-center gap-1">
+                    <span>🥑</span> KETO SCORE
+                  </span>
+                  <span className="text-sm font-black text-orange-600">
+                    {Math.round(selectedRestaurant.ketoScore * 100)}%
+                  </span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-3 shadow-inner">
+                  <div
+                    className="bg-gradient-to-r from-orange-500 to-red-500 h-3 rounded-full transition-all shadow-md"
+                    style={{ width: `${selectedRestaurant.ketoScore * 100}%` }}
+                  ></div>
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t-2 border-gray-200 pt-4">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="text-xl font-bold text-gray-800">
+                  Keto Reviews ({reviews.length})
+                </h4>
+                <button
+                  onClick={() => {
+                    setShowDetailsModal(false);
+                    setShowReviewModal(true);
+                  }}
+                  className="bg-gradient-to-r from-orange-500 to-red-500 text-white px-4 py-2 rounded-lg hover:from-orange-600 hover:to-red-600 transition font-semibold text-sm"
+                >
+                  Add Review
+                </button>
+              </div>
+
+              {loadingReviews ? (
+                <div className="text-center py-8">
+                  <Loader className="w-8 h-8 animate-spin mx-auto text-orange-500" />
+                  <p className="text-gray-500 mt-2">Loading reviews...</p>
+                </div>
+              ) : reviews.length === 0 ? (
+                <div className="text-center py-8 bg-gray-50 rounded-xl">
+                  <MessageSquare className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                  <p className="text-gray-500">No reviews yet. Be the first to review!</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {reviews.map((review) => (
+                    <div key={review.id} className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <p className="font-bold text-gray-800">{review.user_name}</p>
+                          <p className="text-xs text-gray-500">
+                            {new Date(review.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <div className="flex items-center bg-yellow-100 px-2 py-1 rounded">
+                            <Star className="w-4 h-4 text-yellow-600 fill-current mr-1" />
+                            <span className="text-sm font-bold text-yellow-700">
+                              {review.overall_rating}
+                            </span>
+                          </div>
+                          <div className="flex items-center bg-green-100 px-2 py-1 rounded">
+                            <span className="text-sm mr-1">🥑</span>
+                            <span className="text-sm font-bold text-green-700">
+                              {review.keto_rating}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {review.menu_items && (
+                        <p className="text-sm text-gray-600 mb-2">
+                          <strong>Tried:</strong> {review.menu_items}
+                        </p>
+                      )}
+
+                      <p className="text-gray-700">{review.comment}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
