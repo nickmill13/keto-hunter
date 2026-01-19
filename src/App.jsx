@@ -28,7 +28,7 @@ export default function App() {
     userName: ''
   });
 
-  const API_URL = 'https://wholesome-magic-production-f9c3.up.railway.app/api/search-keto-restaurants';
+  const API_URL = 'https://keto-hunter-backend-production.up.railway.app/api/search-keto-restaurants';
 
   const cuisineOptions = [
     'American', 'Mediterranean', 'Mexican', 'Italian', 
@@ -157,7 +157,7 @@ export default function App() {
     
     try {
       const response = await fetch(
-        `https://wholesome-magic-production-f9c3.up.railway.app/api/reviews/${restaurantId}`
+        `https://keto-hunter-backend-production.up.railway.app/api/reviews/${restaurantId}`
       );
       const data = await response.json();
       setReviews(data.reviews || []);
@@ -176,7 +176,7 @@ export default function App() {
     }
 
     try {
-      const response = await fetch('https://wholesome-magic-production-f9c3.up.railway.app/api/submit-review', {
+      const response = await fetch('https://keto-hunter-backend-production.up.railway.app/api/submit-review', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
