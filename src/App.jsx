@@ -10,6 +10,7 @@ export default function App() {
   const [selectedRestaurant, setSelectedRestaurant] = useState(null);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [reviews, setReviews] = useState([]);
+  const [ketoItems, setKetoItems] = useState([]);
   const [loadingReviews, setLoadingReviews] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   
@@ -192,9 +193,11 @@ export default function App() {
       );
       const data = await response.json();
       setReviews(data.reviews || []);
+      setKetoItems(data.ketoItems || []);
     } catch (error) {
       console.error('Error loading reviews:', error);
       setReviews([]);
+      setKetoItems([]);
     } finally {
       setLoadingReviews(false);
     }
@@ -603,21 +606,14 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Keto options */}
+                  {/* Keto options - now user-submitted */}
                   <div className="border-t-2 border-gray-200 pt-3 sm:pt-4">
                     <p className="text-sm font-bold text-gray-700 mb-2 flex items-center gap-1">
-                      <span>🍴</span> Popular Keto Options:
+                      <span>🍴</span> Keto Menu Items:
                     </p>
-                    <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                      {restaurant.ketoOptions.map((option, index) => (
-                        <span
-                          key={index}
-                          className="bg-gradient-to-r from-orange-100 to-yellow-100 text-orange-700 px-2 sm:px-3 py-1 rounded-full text-xs font-bold border-2 border-orange-200"
-                        >
-                          {option}
-                        </span>
-                      ))}
-                    </div>
+                    <p className="text-sm text-gray-500 italic">
+                      Tap "View Details" to see keto items shared by the community, or be the first to share!
+                    </p>
                   </div>
 
                   {/* Action buttons - stack on mobile */}
@@ -791,6 +787,7 @@ export default function App() {
                 onClick={() => {
                   setShowDetailsModal(false);
                   setReviews([]);
+                  setKetoItems([]);
                 }}
                 className="text-gray-400 hover:text-gray-600 active:scale-90 transition p-2 -mr-2"
               >
@@ -831,6 +828,35 @@ export default function App() {
                     ></div>
                   </div>
                 </div>
+              </div>
+
+              {/* User-submitted Keto Items */}
+              <div className="mb-6">
+                <h4 className="text-lg sm:text-xl font-bold text-gray-800 mb-3 flex items-center gap-2">
+                  <span>🍴</span> Community Keto Picks
+                </h4>
+                {loadingReviews ? (
+                  <div className="text-center py-4">
+                    <Loader className="w-6 h-6 animate-spin mx-auto text-orange-500" />
+                  </div>
+                ) : ketoItems.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {ketoItems.map((item, index) => (
+                      <span
+                        key={index}
+                        className="bg-gradient-to-r from-orange-100 to-yellow-100 text-orange-700 px-3 py-1.5 rounded-full text-sm font-bold border-2 border-orange-200"
+                      >
+                        {item}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-gray-50 rounded-xl p-4 text-center">
+                    <p className="text-gray-500 text-sm">
+                      No keto items shared yet. Be the first to add one in your review!
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Reviews section */}
