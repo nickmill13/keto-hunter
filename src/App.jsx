@@ -125,7 +125,38 @@ export default function App() {
       setError('Please enter a location');
       return;
     }
-    searchByCoordinates(40.7128, -74.0060);
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // First, geocode the address to get coordinates
+      const geocodeResponse = await fetch('https://keto-hunter-backend-production.up.railway.app/api/geocode', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ address: location })
+      });
+      
+      const geocodeData = await geocodeResponse.json();
+      
+      if (!geocodeData.success) {
+        setError(geocodeData.error || 'Could not find that location. Try a more specific address.');
+        setLoading(false);
+        return;
+      }
+      
+      // Update the location field with the formatted address
+      setLocation(geocodeData.formattedAddress);
+      
+      // Now search with the coordinates
+      await searchByCoordinates(geocodeData.latitude, geocodeData.longitude);
+    } catch (err) {
+      console.error('Geocoding error:', err);
+      setError('Unable to find that location. Please try again.');
+      setLoading(false);
+    }
   };
 
   const handleKeyPress = (e) => {
