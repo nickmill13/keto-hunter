@@ -11,6 +11,8 @@ export default function App() {
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [reviews, setReviews] = useState([]);
   const [ketoItems, setKetoItems] = useState([]);
+  const [aiSuggestions, setAiSuggestions] = useState([]);
+  const [loadingAiSuggestions, setLoadingAiSuggestions] = useState(false);
   const [loadingReviews, setLoadingReviews] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   
@@ -183,23 +185,57 @@ export default function App() {
     return '$'.repeat(level);
   };
 
-  const loadReviews = async (restaurantId) => {
+  const loadReviews = async (restaurant) => {
     setLoadingReviews(true);
     setShowDetailsModal(true);
+    setAiSuggestions([]);
     
     try {
       const response = await fetch(
-        `https://keto-hunter-backend-production.up.railway.app/api/reviews/${restaurantId}`
+        `https://keto-hunter-backend-production.up.railway.app/api/reviews/${restaurant.id}`
       );
       const data = await response.json();
       setReviews(data.reviews || []);
       setKetoItems(data.ketoItems || []);
+      
+      // If no user-submitted keto items, fetch AI suggestions
+      if (!data.ketoItems || data.ketoItems.length === 0) {
+        fetchAiSuggestions(restaurant);
+      }
     } catch (error) {
       console.error('Error loading reviews:', error);
       setReviews([]);
       setKetoItems([]);
     } finally {
       setLoadingReviews(false);
+    }
+  };
+
+  const fetchAiSuggestions = async (restaurant) => {
+    if (!restaurant) return;
+    
+    setLoadingAiSuggestions(true);
+    try {
+      const response = await fetch(
+        'https://keto-hunter-backend-production.up.railway.app/api/ai-suggestions',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            restaurantName: restaurant.name,
+            cuisine: restaurant.cuisine
+          })
+        }
+      );
+      const data = await response.json();
+      setAiSuggestions(data.suggestions || []);
+    } catch (error) {
+      console.error('Error fetching AI suggestions:', error);
+      setAiSuggestions([]);
+    } finally {
+      setLoadingAiSuggestions(false);
     }
   };
 
@@ -621,7 +657,7 @@ export default function App() {
                     <button 
                       onClick={() => {
                         setSelectedRestaurant(restaurant);
-                        loadReviews(restaurant.id);
+                        loadReviews(restaurant);
                       }}
                       className="flex-1 bg-gradient-to-r from-orange-500 to-red-500 text-white py-3 rounded-xl hover:from-orange-600 hover:to-red-600 active:scale-[0.98] transition font-bold shadow-md text-sm sm:text-base"
                     >
@@ -788,6 +824,7 @@ export default function App() {
                   setShowDetailsModal(false);
                   setReviews([]);
                   setKetoItems([]);
+                  setAiSuggestions([]);
                 }}
                 className="text-gray-400 hover:text-gray-600 active:scale-90 transition p-2 -mr-2"
               >
@@ -851,10 +888,39 @@ export default function App() {
                     ))}
                   </div>
                 ) : (
-                  <div className="bg-gray-50 rounded-xl p-4 text-center">
-                    <p className="text-gray-500 text-sm">
-                      No keto items shared yet. Be the first to add one in your review!
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <p className="text-gray-500 text-sm mb-3 text-center">
+                      No community picks yet. Be the first to share what you ordered!
                     </p>
+                    
+                    {/* AI Suggestions Section */}
+                    {loadingAiSuggestions ? (
+                      <div className="text-center py-2">
+                        <Loader className="w-5 h-5 animate-spin mx-auto text-purple-500" />
+                        <p className="text-gray-400 text-xs mt-1">Getting suggestions...</p>
+                      </div>
+                    ) : aiSuggestions.length > 0 && (
+                      <div className="border-t border-gray-200 pt-3 mt-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-purple-600 text-xs font-bold uppercase tracking-wide">
+                            🤖 AI-Suggested Keto Options
+                          </span>
+                        </div>
+                        <p className="text-gray-400 text-xs mb-2 italic">
+                          These are possible keto-friendly items based on the cuisine type. Actual menu may vary.
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {aiSuggestions.map((item, index) => (
+                            <span
+                              key={index}
+                              className="bg-gradient-to-r from-purple-100 to-indigo-100 text-purple-700 px-3 py-1.5 rounded-full text-sm font-medium border-2 border-purple-200 border-dashed"
+                            >
+                              {item}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
