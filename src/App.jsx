@@ -1,7 +1,19 @@
 import React, { useState } from 'react';
-import { Search, MapPin, Utensils, Star, Navigation, Loader, Filter, X, MessageSquare, Send, Award, TrendingUp } from 'lucide-react';
+import { Search, MapPin, Utensils, Star, Navigation, Loader, Filter, X, MessageSquare, Send, Award, TrendingUp, User } from 'lucide-react';
+import {
+  SignedIn,
+  SignedOut,
+  SignInButton,
+  SignUpButton,
+  UserButton,
+  useUser,
+  useAuth
+} from '@clerk/clerk-react';
 
 export default function App() {
+  const { user, isSignedIn } = useUser();
+  const { getToken } = useAuth();
+  
   const [location, setLocation] = useState('');
   const [restaurants, setRestaurants] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -27,8 +39,7 @@ export default function App() {
     rating: 5,
     ketoRating: 5,
     comment: '',
-    menuItems: '',
-    userName: ''
+    menuItems: ''
   });
 
   const API_URL = 'https://keto-hunter-backend-production.up.railway.app/api/search-keto-restaurants';
@@ -133,7 +144,6 @@ export default function App() {
     setError(null);
     
     try {
-      // First, geocode the address to get coordinates
       const geocodeResponse = await fetch('https://keto-hunter-backend-production.up.railway.app/api/geocode', {
         method: 'POST',
         headers: {
@@ -150,10 +160,7 @@ export default function App() {
         return;
       }
       
-      // Update the location field with the formatted address
       setLocation(geocodeData.formattedAddress);
-      
-      // Now search with the coordinates
       await searchByCoordinates(geocodeData.latitude, geocodeData.longitude);
     } catch (err) {
       console.error('Geocoding error:', err);
@@ -198,7 +205,6 @@ export default function App() {
       setReviews(data.reviews || []);
       setKetoItems(data.ketoItems || []);
       
-      // If no user-submitted keto items, fetch AI suggestions
       if (!data.ketoItems || data.ketoItems.length === 0) {
         fetchAiSuggestions(restaurant);
       }
@@ -240,23 +246,43 @@ export default function App() {
   };
 
   const submitReview = async () => {
-    if (!reviewForm.userName.trim() || !reviewForm.comment.trim()) {
-      alert('Please fill in your name and review');
+    if (!isSignedIn) {
+      alert('Please sign in to submit a review');
       return;
     }
+
+    if (!reviewForm.comment.trim()) {
+      alert('Please write a review');
+      return;
+    }
+
+    // Get the auth token from Clerk
+    const token = await getToken();
+
+    // Get user's name from Clerk
+    const userName = user?.firstName 
+      ? `${user.firstName}${user.lastName ? ' ' + user.lastName : ''}`
+      : user?.username || 'Anonymous';
 
     try {
       const response = await fetch('https://keto-hunter-backend-production.up.railway.app/api/submit-review', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`  // Send the auth token!
         },
         body: JSON.stringify({
           restaurantId: selectedRestaurant.id,
           restaurantName: selectedRestaurant.name,
+          userName: userName,
           ...reviewForm
         })
       });
+
+      if (response.status === 401) {
+        alert('Your session has expired. Please sign in again.');
+        return;
+      }
 
       if (response.ok) {
         alert('Thank you for your keto review!');
@@ -265,9 +291,16 @@ export default function App() {
           rating: 5,
           ketoRating: 5,
           comment: '',
-          menuItems: '',
-          userName: ''
+          menuItems: ''
         });
+        // Reload reviews to show the new one
+        if (selectedRestaurant) {
+          loadReviews(selectedRestaurant);
+          setShowDetailsModal(true);
+        }
+      } else {
+        const errorData = await response.json();
+        alert(errorData.error || 'Failed to submit review. Please try again.');
       }
     } catch (err) {
       console.error('Error submitting review:', err);
@@ -370,6 +403,40 @@ export default function App() {
 
       {/* Main container - responsive padding */}
       <div className="max-w-7xl mx-auto px-4 py-4 sm:p-6 relative z-10 safe-area-inset">
+        
+        {/* Auth Header Bar */}
+        <div className="flex justify-end mb-4">
+          <SignedOut>
+            <div className="flex gap-2">
+              <SignInButton mode="modal">
+                <button className="px-4 py-2 bg-white/90 hover:bg-white text-orange-600 rounded-xl font-semibold text-sm transition shadow-lg flex items-center gap-2">
+                  <User className="w-4 h-4" />
+                  Sign In
+                </button>
+              </SignInButton>
+              <SignUpButton mode="modal">
+                <button className="px-4 py-2 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white rounded-xl font-semibold text-sm transition shadow-lg">
+                  Sign Up
+                </button>
+              </SignUpButton>
+            </div>
+          </SignedOut>
+          <SignedIn>
+            <div className="flex items-center gap-3">
+              <span className="text-white/90 text-sm font-medium hidden sm:block">
+                Hey, {user?.firstName || 'Keto Hunter'}! 👋
+              </span>
+              <UserButton 
+                appearance={{
+                  elements: {
+                    avatarBox: "w-10 h-10 ring-2 ring-white/50"
+                  }
+                }}
+              />
+            </div>
+          </SignedIn>
+        </div>
+
         {/* Header - responsive sizing */}
         <div className="text-center mb-6 sm:mb-8">
           <div className="flex items-center justify-center mb-3 sm:mb-4">
@@ -380,7 +447,6 @@ export default function App() {
               </div>
             </div>
           </div>
-          {/* Responsive title - much smaller on mobile */}
           <h1 className="text-3xl sm:text-4xl md:text-6xl font-black text-white mb-2 tracking-tight drop-shadow-lg">
             KETO HUNTER
           </h1>
@@ -394,10 +460,9 @@ export default function App() {
           </p>
         </div>
 
-        {/* Search Card - responsive padding and layout */}
+        {/* Search Card */}
         <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-4 sm:p-6 mb-4 sm:mb-6 border-2 border-orange-300">
           <div className="space-y-3 sm:space-y-4">
-            {/* Search input row - stacks on mobile */}
             <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
               <div className="flex-1 relative">
                 <MapPin className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 text-orange-600 w-5 h-5" />
@@ -407,10 +472,9 @@ export default function App() {
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  className="w-full pl-10 sm:pl-12 pr-4 py-3 sm:py-3 border-2 border-orange-200 rounded-xl focus:border-orange-500 focus:ring-2 focus:ring-orange-200 focus:outline-none text-gray-800 font-medium text-base"
+                  className="w-full pl-10 sm:pl-12 pr-4 py-3 border-2 border-orange-200 rounded-xl focus:border-orange-500 focus:ring-2 focus:ring-orange-200 focus:outline-none text-gray-800 font-medium text-base"
                 />
               </div>
-              {/* Location button - full width on mobile, icon-only option */}
               <button
                 onClick={getCurrentLocation}
                 disabled={loading}
@@ -421,7 +485,6 @@ export default function App() {
               </button>
             </div>
             
-            {/* Action buttons - stack on mobile */}
             <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
               <button
                 onClick={handleSearch}
@@ -443,7 +506,7 @@ export default function App() {
               
               <button
                 onClick={() => setShowFilters(!showFilters)}
-                className="w-full sm:w-auto px-6 py-3 sm:py-3 bg-gradient-to-r from-yellow-100 to-amber-100 text-orange-800 rounded-xl hover:from-yellow-200 hover:to-amber-200 active:scale-95 transition flex items-center justify-center gap-2 font-semibold border-2 border-yellow-200"
+                className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-yellow-100 to-amber-100 text-orange-800 rounded-xl hover:from-yellow-200 hover:to-amber-200 active:scale-95 transition flex items-center justify-center gap-2 font-semibold border-2 border-yellow-200"
               >
                 <Filter className="w-5 h-5" />
                 <span>Filters</span>
@@ -463,7 +526,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* Filters Panel - responsive */}
+        {/* Filters Panel */}
         {showFilters && (
           <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-4 sm:p-6 mb-4 sm:mb-6 border-2 border-yellow-200">
             <div className="flex items-center gap-2 mb-4">
@@ -471,7 +534,6 @@ export default function App() {
               <h3 className="text-lg sm:text-xl font-bold text-gray-800">Filter Your Hunt</h3>
             </div>
             
-            {/* Distance slider */}
             <div className="mb-5 sm:mb-6">
               <label className="block text-sm font-bold text-gray-700 mb-2">
                 🎯 Max Distance: <span className="text-orange-600">{filters.maxDistance} miles</span>
@@ -486,11 +548,8 @@ export default function App() {
               />
             </div>
 
-            {/* Price range - larger touch targets */}
             <div className="mb-5 sm:mb-6">
-              <label className="block text-sm font-bold text-gray-700 mb-2">
-                💰 Price Range
-              </label>
+              <label className="block text-sm font-bold text-gray-700 mb-2">💰 Price Range</label>
               <div className="flex gap-2">
                 {[1, 2, 3, 4].map(level => (
                   <button
@@ -508,11 +567,8 @@ export default function App() {
               </div>
             </div>
 
-            {/* Cuisine types - scrollable on mobile */}
             <div className="mb-5 sm:mb-6">
-              <label className="block text-sm font-bold text-gray-700 mb-2">
-                🍽️ Cuisine Type
-              </label>
+              <label className="block text-sm font-bold text-gray-700 mb-2">🍽️ Cuisine Type</label>
               <div className="flex flex-wrap gap-2">
                 {cuisineOptions.map(cuisine => (
                   <button
@@ -530,11 +586,8 @@ export default function App() {
               </div>
             </div>
 
-            {/* Dining options */}
             <div className="mb-4">
-              <label className="block text-sm font-bold text-gray-700 mb-2">
-                📍 Dining Options
-              </label>
+              <label className="block text-sm font-bold text-gray-700 mb-2">📍 Dining Options</label>
               <div className="flex flex-wrap gap-2">
                 {diningOptionsData.map(option => (
                   <button
@@ -577,14 +630,12 @@ export default function App() {
                 Found {restaurants.length} Keto Spot{restaurants.length !== 1 ? 's' : ''} 🎉
               </h2>
             </div>
-            {/* Restaurant cards - single column on mobile, 2 cols on large screens */}
             <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
               {restaurants.map((restaurant) => (
                 <div
                   key={restaurant.id}
                   className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl p-4 sm:p-6 border-2 border-orange-100 active:scale-[0.99] transition-transform"
                 >
-                  {/* Card header */}
                   <div className="flex justify-between items-start mb-3 sm:mb-4">
                     <div className="flex-1 min-w-0 pr-2">
                       <h3 className="text-lg sm:text-2xl font-bold text-gray-800 mb-1 truncate">
@@ -598,80 +649,46 @@ export default function App() {
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center bg-gradient-to-r from-yellow-100 to-amber-100 px-2 sm:px-3 py-1 rounded-full border-2 border-yellow-200 shrink-0">
-                      <Star className="w-4 h-4 text-yellow-600 fill-current mr-1" />
-                      <span className="font-bold text-yellow-700">{restaurant.rating}</span>
+                    <div className="bg-gradient-to-br from-orange-500 to-red-500 text-white px-2 sm:px-3 py-1 rounded-xl shadow-lg shrink-0">
+                      <div className="text-xs font-bold text-orange-200">KETO</div>
+                      <div className="text-lg sm:text-xl font-black">{Math.round(restaurant.ketoScore * 100)}%</div>
                     </div>
                   </div>
 
-                  {/* Keto score bar */}
-                  <div className="mb-3 sm:mb-4 bg-gradient-to-r from-orange-50 to-red-50 p-3 rounded-xl border-2 border-orange-200">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-bold text-gray-700 flex items-center gap-1">
-                        <span>🥑</span> KETO SCORE
-                      </span>
-                      <span className="text-sm font-black text-orange-600">
-                        {Math.round(restaurant.ketoScore * 100)}%
-                      </span>
+                  <div className="flex items-center gap-3 sm:gap-4 mb-3 sm:mb-4 text-sm">
+                    <div className="flex items-center gap-1 text-gray-600">
+                      <MapPin className="w-4 h-4 text-orange-500" />
+                      <span className="font-medium">{restaurant.distance} mi</span>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2.5 sm:h-3 shadow-inner">
-                      <div
-                        className="bg-gradient-to-r from-orange-500 to-red-500 h-2.5 sm:h-3 rounded-full transition-all shadow-md"
-                        style={{ width: `${restaurant.ketoScore * 100}%` }}
-                      ></div>
+                    <div className="flex items-center gap-1 text-gray-600">
+                      <Star className="w-4 h-4 text-yellow-500 fill-current" />
+                      <span className="font-medium">{restaurant.rating}</span>
                     </div>
+                    {restaurant.ketoReviews > 0 && (
+                      <div className="flex items-center gap-1 text-green-600">
+                        <span className="text-xs">🥑</span>
+                        <span className="font-medium text-xs">{restaurant.ketoReviews} keto reviews</span>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Address */}
-                  <div className="flex items-center text-gray-600 mb-3">
-                    <MapPin className="w-4 h-4 mr-2 text-orange-600 shrink-0" />
-                    <span className="text-sm font-medium truncate">{restaurant.address} • {restaurant.distance} mi</span>
-                  </div>
+                  <p className="text-gray-500 text-sm mb-3 truncate">{restaurant.address}</p>
 
-                  {/* Dining options badges */}
-                  <div className="mb-3 sm:mb-4">
-                    <div className="flex flex-wrap gap-1">
-                      {restaurant.diningOptions?.map((option, idx) => (
-                        <span
-                          key={idx}
-                          className="bg-blue-100 text-blue-700 px-2 py-1 rounded-lg text-xs font-bold border border-blue-200"
-                        >
-                          {option}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Keto options - now user-submitted */}
-                  <div className="border-t-2 border-gray-200 pt-3 sm:pt-4">
-                    <p className="text-sm font-bold text-gray-700 mb-2 flex items-center gap-1">
-                      <span>🍴</span> Keto Menu Items:
-                    </p>
-                    <p className="text-sm text-gray-500 italic">
-                      Tap "View Details" to see keto items shared by the community, or be the first to share!
-                    </p>
-                  </div>
-
-                  {/* Action buttons - stack on mobile */}
-                  <div className="flex flex-col sm:flex-row gap-2 mt-4">
-                    <button 
+                  <div className="flex gap-2 sm:gap-3">
+                    <button
                       onClick={() => {
                         setSelectedRestaurant(restaurant);
                         loadReviews(restaurant);
                       }}
-                      className="flex-1 bg-gradient-to-r from-orange-500 to-red-500 text-white py-3 rounded-xl hover:from-orange-600 hover:to-red-600 active:scale-[0.98] transition font-bold shadow-md text-sm sm:text-base"
+                      className="flex-1 bg-gradient-to-r from-orange-500 to-red-500 text-white py-3 rounded-xl hover:from-orange-600 hover:to-red-600 active:scale-[0.98] transition font-bold text-sm sm:text-base shadow-lg"
                     >
-                      View Details & Reviews
+                      View Details
                     </button>
                     <button
-                      onClick={() => {
-                        setSelectedRestaurant(restaurant);
-                        setShowReviewModal(true);
-                      }}
-                      className="flex-1 bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 py-3 rounded-xl hover:from-gray-200 hover:to-gray-300 active:scale-[0.98] transition font-bold flex items-center justify-center gap-2 border-2 border-gray-300 text-sm sm:text-base"
+                      onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(restaurant.name + ' ' + restaurant.address)}`, '_blank')}
+                      className="px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition active:scale-95"
                     >
-                      <MessageSquare className="w-4 h-4" />
-                      Review ({restaurant.ketoReviews})
+                      <Navigation className="w-5 h-5" />
                     </button>
                   </div>
                 </div>
@@ -681,22 +698,26 @@ export default function App() {
         )}
 
         {/* Empty state */}
-        {restaurants.length === 0 && !loading && (
-          <div className="text-center py-12 sm:py-16 bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl border-2 border-orange-200">
-            <div className="text-5xl sm:text-7xl mb-4">🔍</div>
-            <Utensils className="w-12 h-12 sm:w-16 sm:h-16 text-orange-300 mx-auto mb-4" />
-            <p className="text-gray-600 text-lg sm:text-xl font-semibold px-4">
-              Ready to hunt? Enter a location above! 🎯
+        {!loading && restaurants.length === 0 && !error && (
+          <div className="text-center py-8 sm:py-16">
+            <div className="relative inline-block mb-4 sm:mb-6">
+              <div className="absolute -inset-3 bg-white/20 rounded-full blur-lg"></div>
+              <div className="relative bg-white/90 rounded-full p-4 sm:p-6 shadow-xl">
+                <Utensils className="w-12 h-12 sm:w-16 sm:h-16 text-orange-500" />
+              </div>
+            </div>
+            <h3 className="text-xl sm:text-2xl font-bold text-white mb-2 drop-shadow-lg">Ready to Hunt?</h3>
+            <p className="text-white/90 font-medium text-base sm:text-lg max-w-md mx-auto px-4">
+              Enter your location above to discover keto-friendly restaurants near you!
             </p>
           </div>
         )}
       </div>
 
-      {/* Review Modal - Full screen on mobile */}
-      {showReviewModal && (
+      {/* Review Modal */}
+      {showReviewModal && selectedRestaurant && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center z-50">
-          <div className="bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-3xl max-h-[90vh] sm:max-h-[90vh] overflow-y-auto shadow-2xl border-t-2 sm:border-2 border-orange-200">
-            {/* Modal header - sticky on mobile */}
+          <div className="bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-3xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto shadow-2xl border-t-2 sm:border-2 border-orange-200">
             <div className="sticky top-0 bg-white px-4 sm:px-6 py-4 border-b border-gray-100 flex justify-between items-center">
               <h3 className="text-xl sm:text-2xl font-black text-gray-800 flex items-center gap-2">
                 <span>✍️</span> Add Keto Review
@@ -710,26 +731,24 @@ export default function App() {
             </div>
             
             <div className="px-4 sm:px-6 py-4 pb-8">
-              <p className="text-gray-600 mb-6 font-semibold">{selectedRestaurant?.name}</p>
+              <p className="text-gray-600 mb-4 font-semibold">{selectedRestaurant?.name}</p>
+              
+              {/* Show who is reviewing */}
+              <div className="bg-green-50 border-2 border-green-200 rounded-xl p-3 mb-6 flex items-center gap-3">
+                <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white font-bold">
+                  {user?.firstName?.charAt(0) || '?'}
+                </div>
+                <div>
+                  <p className="text-sm text-green-800 font-semibold">
+                    Reviewing as {user?.firstName || user?.username || 'User'}
+                  </p>
+                  <p className="text-xs text-green-600">Your name will appear with your review</p>
+                </div>
+              </div>
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">
-                    Your Name
-                  </label>
-                  <input
-                    type="text"
-                    value={reviewForm.userName}
-                    onChange={(e) => setReviewForm({ ...reviewForm, userName: e.target.value })}
-                    className="w-full px-4 py-3 border-2 border-orange-200 rounded-xl focus:border-orange-500 focus:ring-2 focus:ring-orange-200 focus:outline-none font-medium text-base"
-                    placeholder="Enter your name"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">
-                    Overall Rating
-                  </label>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Overall Rating</label>
                   <div className="flex gap-1 sm:gap-2">
                     {[1, 2, 3, 4, 5].map(rating => (
                       <button
@@ -737,22 +756,14 @@ export default function App() {
                         onClick={() => setReviewForm({ ...reviewForm, rating })}
                         className="w-11 h-11 sm:w-10 sm:h-10 flex items-center justify-center transition active:scale-90"
                       >
-                        <Star
-                          className={`w-8 h-8 ${
-                            rating <= reviewForm.rating
-                              ? 'text-yellow-400 fill-current'
-                              : 'text-gray-300'
-                          }`}
-                        />
+                        <Star className={`w-8 h-8 ${rating <= reviewForm.rating ? 'text-yellow-400 fill-current' : 'text-gray-300'}`} />
                       </button>
                     ))}
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">
-                    🥑 Keto-Friendliness Rating
-                  </label>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">🥑 Keto-Friendliness Rating</label>
                   <div className="flex gap-1 sm:gap-2">
                     {[1, 2, 3, 4, 5].map(rating => (
                       <button
@@ -760,22 +771,14 @@ export default function App() {
                         onClick={() => setReviewForm({ ...reviewForm, ketoRating: rating })}
                         className="w-11 h-11 sm:w-10 sm:h-10 flex items-center justify-center transition active:scale-90"
                       >
-                        <Star
-                          className={`w-8 h-8 ${
-                            rating <= reviewForm.ketoRating
-                              ? 'text-orange-500 fill-current'
-                              : 'text-gray-300'
-                          }`}
-                        />
+                        <Star className={`w-8 h-8 ${rating <= reviewForm.ketoRating ? 'text-orange-500 fill-current' : 'text-gray-300'}`} />
                       </button>
                     ))}
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">
-                    🍖 Keto Menu Items You Tried
-                  </label>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">🍖 Keto Menu Items You Tried</label>
                   <input
                     type="text"
                     value={reviewForm.menuItems}
@@ -786,9 +789,7 @@ export default function App() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">
-                    Your Review
-                  </label>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Your Review</label>
                   <textarea
                     value={reviewForm.comment}
                     onChange={(e) => setReviewForm({ ...reviewForm, comment: e.target.value })}
@@ -810,11 +811,10 @@ export default function App() {
         </div>
       )}
 
-      {/* Restaurant Details & Reviews Modal - Full screen on mobile */}
+      {/* Restaurant Details Modal */}
       {showDetailsModal && selectedRestaurant && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center z-50">
           <div className="bg-white w-full sm:max-w-2xl sm:rounded-2xl rounded-t-3xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto shadow-2xl border-t-2 sm:border-2 border-orange-200">
-            {/* Modal header - sticky */}
             <div className="sticky top-0 bg-white px-4 sm:px-6 py-4 border-b border-gray-100 flex justify-between items-center z-10">
               <h3 className="text-lg sm:text-2xl font-black text-gray-800 truncate pr-2">
                 {selectedRestaurant.name}
@@ -833,22 +833,12 @@ export default function App() {
             </div>
 
             <div className="px-4 sm:px-6 py-4 pb-8">
-              {/* Restaurant info */}
               <div className="mb-6 space-y-2">
-                <p className="text-gray-600 text-sm sm:text-base">
-                  <strong>Address:</strong> {selectedRestaurant.address}
-                </p>
-                <p className="text-gray-600 text-sm sm:text-base">
-                  <strong>Distance:</strong> {selectedRestaurant.distance} miles
-                </p>
-                <p className="text-gray-600 text-sm sm:text-base">
-                  <strong>Cuisine:</strong> {selectedRestaurant.cuisine}
-                </p>
-                <p className="text-gray-600 text-sm sm:text-base">
-                  <strong>Price:</strong> {getPriceSymbol(selectedRestaurant.priceLevel)}
-                </p>
+                <p className="text-gray-600 text-sm sm:text-base"><strong>Address:</strong> {selectedRestaurant.address}</p>
+                <p className="text-gray-600 text-sm sm:text-base"><strong>Distance:</strong> {selectedRestaurant.distance} miles</p>
+                <p className="text-gray-600 text-sm sm:text-base"><strong>Cuisine:</strong> {selectedRestaurant.cuisine}</p>
+                <p className="text-gray-600 text-sm sm:text-base"><strong>Price:</strong> {getPriceSymbol(selectedRestaurant.priceLevel)}</p>
 
-                {/* Keto score */}
                 <div className="bg-gradient-to-r from-orange-50 to-red-50 p-3 rounded-xl border-2 border-orange-200 mt-4">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-bold text-gray-700 flex items-center gap-1">
@@ -867,7 +857,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* User-submitted Keto Items */}
               <div className="mb-6">
                 <h4 className="text-lg sm:text-xl font-bold text-gray-800 mb-3 flex items-center gap-2">
                   <span>🍴</span> Community Keto Picks
@@ -879,10 +868,7 @@ export default function App() {
                 ) : ketoItems.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
                     {ketoItems.map((item, index) => (
-                      <span
-                        key={index}
-                        className="bg-gradient-to-r from-orange-100 to-yellow-100 text-orange-700 px-3 py-1.5 rounded-full text-sm font-bold border-2 border-orange-200"
-                      >
+                      <span key={index} className="bg-gradient-to-r from-orange-100 to-yellow-100 text-orange-700 px-3 py-1.5 rounded-full text-sm font-bold border-2 border-orange-200">
                         {item}
                       </span>
                     ))}
@@ -893,7 +879,6 @@ export default function App() {
                       No community picks yet. Be the first to share what you ordered!
                     </p>
                     
-                    {/* AI Suggestions Section */}
                     {loadingAiSuggestions ? (
                       <div className="text-center py-2">
                         <Loader className="w-5 h-5 animate-spin mx-auto text-purple-500" />
@@ -911,10 +896,7 @@ export default function App() {
                         </p>
                         <div className="flex flex-wrap gap-2">
                           {aiSuggestions.map((item, index) => (
-                            <span
-                              key={index}
-                              className="bg-gradient-to-r from-purple-100 to-indigo-100 text-purple-700 px-3 py-1.5 rounded-full text-sm font-medium border-2 border-purple-200 border-dashed"
-                            >
+                            <span key={index} className="bg-gradient-to-r from-purple-100 to-indigo-100 text-purple-700 px-3 py-1.5 rounded-full text-sm font-medium border-2 border-purple-200 border-dashed">
                               {item}
                             </span>
                           ))}
@@ -925,21 +907,31 @@ export default function App() {
                 )}
               </div>
 
-              {/* Reviews section */}
               <div className="border-t-2 border-gray-200 pt-4">
                 <div className="flex items-center justify-between mb-4 gap-2">
                   <h4 className="text-lg sm:text-xl font-bold text-gray-800">
                     Keto Reviews ({reviews.length})
                   </h4>
-                  <button
-                    onClick={() => {
-                      setShowDetailsModal(false);
-                      setShowReviewModal(true);
-                    }}
-                    className="bg-gradient-to-r from-orange-500 to-red-500 text-white px-3 sm:px-4 py-2 rounded-lg hover:from-orange-600 hover:to-red-600 active:scale-95 transition font-semibold text-sm whitespace-nowrap"
-                  >
-                    Add Review
-                  </button>
+                  
+                  <SignedIn>
+                    <button
+                      onClick={() => {
+                        setShowDetailsModal(false);
+                        setShowReviewModal(true);
+                      }}
+                      className="bg-gradient-to-r from-orange-500 to-red-500 text-white px-3 sm:px-4 py-2 rounded-lg hover:from-orange-600 hover:to-red-600 active:scale-95 transition font-semibold text-sm whitespace-nowrap"
+                    >
+                      Add Review
+                    </button>
+                  </SignedIn>
+                  <SignedOut>
+                    <SignInButton mode="modal">
+                      <button className="bg-gradient-to-r from-gray-400 to-gray-500 text-white px-3 sm:px-4 py-2 rounded-lg hover:from-gray-500 hover:to-gray-600 active:scale-95 transition font-semibold text-sm whitespace-nowrap flex items-center gap-1">
+                        <User className="w-4 h-4" />
+                        Sign in to Review
+                      </button>
+                    </SignInButton>
+                  </SignedOut>
                 </div>
 
                 {loadingReviews ? (
@@ -966,15 +958,11 @@ export default function App() {
                           <div className="flex gap-1 sm:gap-2 shrink-0">
                             <div className="flex items-center bg-yellow-100 px-2 py-1 rounded">
                               <Star className="w-3 h-3 sm:w-4 sm:h-4 text-yellow-600 fill-current mr-1" />
-                              <span className="text-xs sm:text-sm font-bold text-yellow-700">
-                                {review.overall_rating}
-                              </span>
+                              <span className="text-xs sm:text-sm font-bold text-yellow-700">{review.overall_rating}</span>
                             </div>
                             <div className="flex items-center bg-green-100 px-2 py-1 rounded">
                               <span className="text-xs sm:text-sm mr-1">🥑</span>
-                              <span className="text-xs sm:text-sm font-bold text-green-700">
-                                {review.keto_rating}
-                              </span>
+                              <span className="text-xs sm:text-sm font-bold text-green-700">{review.keto_rating}</span>
                             </div>
                           </div>
                         </div>
@@ -995,7 +983,6 @@ export default function App() {
           </div>
         </div>
       )}
-
     </div>
   );
 }
