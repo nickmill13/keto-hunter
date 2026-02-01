@@ -10,12 +10,18 @@ import {
   useAuth
 } from '@clerk/clerk-react';
 
+
 export default function App() {
   const { user, isSignedIn } = useUser();
   const { getToken } = useAuth();
   
   const [location, setLocation] = useState('');
+  const [restaurantQuery, setRestaurantQuery] = useState('');
   const [restaurants, setRestaurants] = useState([]);
+  const [allRestaurants, setAllRestaurants] = useState([]);
+  const [displayCount, setDisplayCount] = useState(10);
+  const [viewMode, setViewMode] = useState('list'); // NEW: 'list' or 'map'
+  const [mapCenter, setMapCenter] = useState(null); // NEW: Store user's location
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
@@ -27,7 +33,22 @@ export default function App() {
   const [loadingAiSuggestions, setLoadingAiSuggestions] = useState(false);
   const [loadingReviews, setLoadingReviews] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  
+  const [restaurantSignals, setRestaurantSignals] = useState(null);
+  const [loadingSignals, setLoadingSignals] = useState(false);
+  const [foundKetoFoods, setFoundKetoFoods] = useState([]);
+  const [foundCustomizations, setFoundCustomizations] = useState([]);
+  const [foundCookingMethods, setFoundCookingMethods] = useState([]);
+  const [chainMenuData, setChainMenuData] = useState(null);
+  const [loadingChainMenu, setLoadingChainMenu] = useState(false);
+  const confidenceLabel = (conf) => {
+  if (conf == null) return 'Unknown';
+  const n = Number(conf);
+  if (n >= 0.75) return 'High';
+  if (n >= 0.45) return 'Medium';
+  return 'Low';
+};
+
+
   const [filters, setFilters] = useState({
     maxDistance: 10,
     priceRange: [1, 2, 3, 4],
@@ -42,7 +63,10 @@ export default function App() {
     menuItems: ''
   });
 
-  const API_URL = 'https://keto-hunter-backend-production.up.railway.app/api/search-keto-restaurants';
+
+const BASE_URL = (import.meta.env.VITE_API_URL || 'https://keto-hunter-backend-production.up.railway.app').replace(/\/$/, '');
+
+  const SEARCH_URL = `${BASE_URL}/api/search-keto-restaurants`;
 
   const cuisineOptions = [
     'American', 'Mediterranean', 'Mexican', 'Italian', 
@@ -56,9 +80,10 @@ export default function App() {
   const searchByCoordinates = async (lat, lng) => {
     setLoading(true);
     setError(null);
-    
+    setMapCenter({ lat, lng }); // NEW: Save location for map
+
     try {
-      const response = await fetch(API_URL, {
+      const response = await fetch(SEARCH_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -67,6 +92,7 @@ export default function App() {
           latitude: lat,
           longitude: lng,
           radius: filters.maxDistance * 1609.34,
+          searchQuery: restaurantQuery,
           filters: filters
         })
       });
@@ -76,9 +102,12 @@ export default function App() {
       }
 
       const data = await response.json();
+
       const filtered = applyFilters(data.restaurants || []);
-      setRestaurants(filtered);
-      
+      setAllRestaurants(filtered); // Store all results for pagination
+      setRestaurants(filtered.slice(0, 10)); // Show first 10
+      setDisplayCount(10); // Reset display count
+
       if (filtered.length === 0) {
         setError('No restaurants found matching your criteria. Try adjusting your filters.');
       }
@@ -95,6 +124,8 @@ export default function App() {
   const applyFilters = (restaurantList) => {
     return restaurantList.filter(restaurant => {
       const distanceValue = parseFloat(restaurant.distance);
+
+
       if (distanceValue > filters.maxDistance) return false;
       if (!filters.priceRange.includes(restaurant.priceLevel)) return false;
       if (filters.cuisineTypes.length > 0 && !filters.cuisineTypes.includes(restaurant.cuisine)) {
@@ -144,7 +175,7 @@ export default function App() {
     setError(null);
     
     try {
-      const geocodeResponse = await fetch('https://keto-hunter-backend-production.up.railway.app/api/geocode', {
+      const geocodeResponse = await fetch(`${BASE_URL}/api/geocode`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -192,38 +223,104 @@ export default function App() {
     return '$'.repeat(level);
   };
 
-  const loadReviews = async (restaurant) => {
-    setLoadingReviews(true);
-    setShowDetailsModal(true);
-    setAiSuggestions([]);
-    
-    try {
-      const response = await fetch(
-        `https://keto-hunter-backend-production.up.railway.app/api/reviews/${restaurant.id}`
-      );
-      const data = await response.json();
-      setReviews(data.reviews || []);
-      setKetoItems(data.ketoItems || []);
-      
-      if (!data.ketoItems || data.ketoItems.length === 0) {
-        fetchAiSuggestions(restaurant);
-      }
-    } catch (error) {
-      console.error('Error loading reviews:', error);
-      setReviews([]);
-      setKetoItems([]);
-    } finally {
-      setLoadingReviews(false);
-    }
-  };
+const loadReviews = async (restaurant) => {
+  setLoadingReviews(true);
+  setShowDetailsModal(true);
 
+  // Signals UI state
+  setLoadingSignals(true);
+  setRestaurantSignals(null);
+
+  // Reset per-restaurant UI state
+  setAiSuggestions([]);
+  setReviews([]);
+  setKetoItems([]);
+  setFoundKetoFoods([]);
+  setFoundCustomizations([]);
+  setFoundCookingMethods([]);
+  setChainMenuData(null);
+
+  try {
+    // --- A) Load signals (or create them once, then reload) ---
+    const getSignals = async () => {
+      const res = await fetch(`${BASE_URL}/api/restaurant-signals/${restaurant.id}`);
+      if (!res.ok) throw new Error(`Signals fetch failed (${res.status})`);
+      return res.json();
+    };
+
+    let signalsPayload = await getSignals();
+
+    // Always analyze to get the found items (they're not stored in DB)
+    const analyzeRes = await fetch(`${BASE_URL}/api/analyze-google-reviews/${restaurant.id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ restaurantName: restaurant.name })
+    });
+
+    if (analyzeRes.ok) {
+      const analysisData = await analyzeRes.json();
+      
+      // Store the found items
+      setFoundKetoFoods(analysisData.foundKetoFoods || []);
+      setFoundCustomizations(analysisData.foundCustomizations || []);
+      setFoundCookingMethods(analysisData.foundCookingMethods || []);
+      
+      // Refresh signals
+      signalsPayload = await getSignals();
+    }
+
+    setRestaurantSignals(signalsPayload?.signals || null);
+  } catch (err) {
+    console.error('Error loading/analyzing restaurant signals:', err);
+    setRestaurantSignals(null);
+  } finally {
+    setLoadingSignals(false);
+  }
+
+  // --- B) Check for verified chain menu data ---
+  try {
+    setLoadingChainMenu(true);
+    const chainResponse = await fetch(
+      `${BASE_URL}/api/chain-menu/${restaurant.id}?restaurantName=${encodeURIComponent(restaurant.name)}`
+    );
+    if (chainResponse.ok) {
+      const chainData = await chainResponse.json();
+      if (chainData.isChain && chainData.items.length > 0) {
+        setChainMenuData(chainData);
+      }
+    }
+  } catch (err) {
+  } finally {
+    setLoadingChainMenu(false);
+  }
+
+  // --- C) Load community reviews ---
+  try {
+    const response = await fetch(`${BASE_URL}/api/reviews/${restaurant.id}`);
+    if (!response.ok) throw new Error(`Reviews fetch failed (${response.status})`);
+
+    const data = await response.json();
+    setReviews(data.reviews || []);
+    setKetoItems(data.ketoItems || []);
+
+    if (!data.ketoItems || data.ketoItems.length === 0) {
+      fetchAiSuggestions(restaurant);
+    }
+  } catch (error) {
+    console.error('Error loading reviews:', error);
+    setReviews([]);
+    setKetoItems([]);
+  } finally {
+    setLoadingReviews(false);
+  }
+};
   const fetchAiSuggestions = async (restaurant) => {
     if (!restaurant) return;
     
     setLoadingAiSuggestions(true);
     try {
       const response = await fetch(
-        'https://keto-hunter-backend-production.up.railway.app/api/ai-suggestions',
+        `${BASE_URL}/api/ai-suggestions`,
         {
           method: 'POST',
           headers: {
@@ -265,7 +362,7 @@ export default function App() {
       : user?.username || 'Anonymous';
 
     try {
-      const response = await fetch('https://keto-hunter-backend-production.up.railway.app/api/submit-review', {
+      const response = await fetch(`${BASE_URL}/api/submit-review`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -390,15 +487,107 @@ export default function App() {
     }
   ];
 
+  // Map component
+  const MapView = ({ restaurants, center, onRestaurantClick }) => {
+    const mapRef = React.useRef(null);
+    const mapInstanceRef = React.useRef(null);
+    const markersRef = React.useRef([]);
+
+    React.useEffect(() => {
+      if (!mapRef.current || !center || !window.google) return;
+
+      // Initialize map
+      if (!mapInstanceRef.current) {
+        mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
+          center: { lat: center.lat, lng: center.lng },
+          zoom: 13,
+          styles: [
+            {
+              featureType: 'poi',
+              elementType: 'labels',
+              stylers: [{ visibility: 'off' }]
+            }
+          ]
+        });
+
+        // Add user location marker (blue)
+        new window.google.maps.Marker({
+          position: { lat: center.lat, lng: center.lng },
+          map: mapInstanceRef.current,
+          title: 'Your Location',
+          icon: {
+            path: window.google.maps.SymbolPath.CIRCLE,
+            scale: 10,
+            fillColor: '#4A90E2',
+            fillOpacity: 1,
+            strokeColor: '#FFFFFF',
+            strokeWeight: 2
+          }
+        });
+      }
+
+      // Clear old markers
+      markersRef.current.forEach(marker => marker.setMap(null));
+      markersRef.current = [];
+
+      // Add restaurant markers
+      restaurants.forEach(restaurant => {
+        const position = { 
+          lat: parseFloat(restaurant.lat) || center.lat, 
+          lng: parseFloat(restaurant.lng) || center.lng 
+        };
+
+        // Color based on keto score
+        let pinColor;
+        if (restaurant.ketoScore >= 0.8) {
+          pinColor = '#10B981'; // Green
+        } else if (restaurant.ketoScore >= 0.6) {
+          pinColor = '#F59E0B'; // Yellow
+        } else {
+          pinColor = '#EF4444'; // Red
+        }
+
+        const marker = new window.google.maps.Marker({
+          position,
+          map: mapInstanceRef.current,
+          title: restaurant.name,
+          icon: {
+            path: window.google.maps.SymbolPath.CIRCLE,
+            scale: 8,
+            fillColor: pinColor,
+            fillOpacity: 0.9,
+            strokeColor: '#FFFFFF',
+            strokeWeight: 2
+          }
+        });
+
+        // Click handler
+        marker.addListener('click', () => {
+          onRestaurantClick(restaurant);
+        });
+
+        markersRef.current.push(marker);
+      });
+
+    }, [restaurants, center]);
+
+    return (
+      <div 
+        ref={mapRef} 
+        className="w-full h-[600px] rounded-2xl shadow-xl border-2 border-orange-200"
+      />
+    );
+};
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-400 via-red-400 to-pink-500">
       {/* Decorative emojis - hidden on mobile for cleaner look */}
       <div className="hidden md:block absolute inset-0 overflow-hidden pointer-events-none opacity-10">
-        <div className="absolute top-20 left-10 text-8xl">🥑</div>
+        <div className="absolute top-20 left-10 text-8xl">🥩</div>
         <div className="absolute top-40 right-20 text-7xl">🥩</div>
         <div className="absolute bottom-20 left-1/4 text-6xl">🍳</div>
-        <div className="absolute top-1/3 right-1/3 text-5xl">🥓</div>
-        <div className="absolute bottom-40 right-10 text-7xl">🧀</div>
+        <div className="absolute top-1/3 right-1/3 text-5xl">🥗</div>
+        <div className="absolute bottom-40 right-10 text-7xl">💰</div>
       </div>
 
       {/* Main container - responsive padding */}
@@ -443,7 +632,7 @@ export default function App() {
             <div className="relative">
               <div className="absolute -inset-2 bg-gradient-to-r from-orange-300 to-yellow-400 rounded-full blur opacity-75"></div>
               <div className="relative bg-white rounded-full p-3 sm:p-4 shadow-xl">
-                <span className="text-4xl sm:text-5xl">🍖</span>
+                <span className="text-4xl sm:text-5xl">🍽️</span>
               </div>
             </div>
           </div>
@@ -456,7 +645,7 @@ export default function App() {
             <div className="h-1 w-8 sm:w-12 bg-gradient-to-r from-transparent via-yellow-400 to-transparent rounded"></div>
           </div>
           <p className="text-yellow-100 text-base sm:text-xl font-medium px-4">
-            Hunt down the best keto-friendly spots near you 🎯
+            Hunt down the best keto-friendly spots near you 🏹
           </p>
         </div>
 
@@ -475,6 +664,18 @@ export default function App() {
                   className="w-full pl-10 sm:pl-12 pr-4 py-3 border-2 border-orange-200 rounded-xl focus:border-orange-500 focus:ring-2 focus:ring-orange-200 focus:outline-none text-gray-800 font-medium text-base"
                 />
               </div>
+{/* NEW: Restaurant name search */}
+<div className="flex-1 relative">
+  <Search className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 text-orange-600 w-5 h-5" />
+  <input
+    type="text"
+    placeholder="Search for a specific restaurant (optional)"
+    value={restaurantQuery}
+    onChange={(e) => setRestaurantQuery(e.target.value)}
+    onKeyPress={handleKeyPress}
+    className="w-full pl-10 sm:pl-12 pr-4 py-3 border-2 border-orange-200 rounded-xl focus:border-orange-500 focus:ring-2 focus:ring-orange-200 focus:outline-none text-gray-800 font-medium text-base"
+  />
+</div>
               <button
                 onClick={getCurrentLocation}
                 disabled={loading}
@@ -499,7 +700,7 @@ export default function App() {
                 ) : (
                   <>
                     <Search className="w-5 h-5 sm:w-6 sm:h-6" />
-                    Start The Hunt 🔍
+                    Start The Hunt 🎯
                   </>
                 )}
               </button>
@@ -536,7 +737,7 @@ export default function App() {
             
             <div className="mb-5 sm:mb-6">
               <label className="block text-sm font-bold text-gray-700 mb-2">
-                🎯 Max Distance: <span className="text-orange-600">{filters.maxDistance} miles</span>
+                🏹 Max Distance: <span className="text-orange-600">{filters.maxDistance} miles</span>
               </label>
               <input
                 type="range"
@@ -587,7 +788,7 @@ export default function App() {
             </div>
 
             <div className="mb-4">
-              <label className="block text-sm font-bold text-gray-700 mb-2">📍 Dining Options</label>
+              <label className="block text-sm font-bold text-gray-700 mb-2">🍽️ Dining Options</label>
               <div className="flex flex-wrap gap-2">
                 {diningOptionsData.map(option => (
                   <button
@@ -622,20 +823,83 @@ export default function App() {
         )}
 
         {/* Results section */}
-        {restaurants.length > 0 && (
-          <div>
-            <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
-              <TrendingUp className="w-5 h-5 sm:w-7 sm:h-7 text-yellow-300" />
-              <h2 className="text-xl sm:text-3xl font-black text-white drop-shadow-lg">
-                Found {restaurants.length} Keto Spot{restaurants.length !== 1 ? 's' : ''} 🎉
-              </h2>
-            </div>
-            <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
-              {restaurants.map((restaurant) => (
-                <div
-                  key={restaurant.id}
-                  className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl p-4 sm:p-6 border-2 border-orange-100 active:scale-[0.99] transition-transform"
-                >
+{restaurants.length > 0 && (
+  <div>
+    <div className="flex items-center justify-between mb-4 sm:mb-6">
+      <div className="flex items-center gap-2 sm:gap-3">
+        <TrendingUp className="w-5 h-5 sm:w-7 sm:h-7 text-yellow-300" />
+        <h2 className="text-xl sm:text-3xl font-black text-white drop-shadow-lg">
+          Found {allRestaurants.length} Keto Spot{allRestaurants.length !== 1 ? 's' : ''} 🔥
+        </h2>
+      </div>
+      
+      {/* NEW: View Toggle */}
+      <div className="flex gap-2 bg-white/90 rounded-xl p-1 shadow-lg">
+        <button
+          onClick={() => setViewMode('list')}
+          className={`px-4 py-2 rounded-lg font-semibold text-sm transition ${
+            viewMode === 'list'
+              ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white'
+              : 'text-gray-600 hover:text-gray-800'
+          }`}
+        >
+          📋 List
+        </button>
+        <button
+          onClick={() => setViewMode('map')}
+          className={`px-4 py-2 rounded-lg font-semibold text-sm transition ${
+            viewMode === 'map'
+              ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white'
+              : 'text-gray-600 hover:text-gray-800'
+          }`}
+        >
+          🗺️ Map
+        </button>
+      </div>
+    </div>
+
+    {/* Map Legend */}
+    {viewMode === 'map' && (        
+      <div className="bg-white/90 rounded-xl p-4 mb-4 shadow-lg">
+        <p className="text-sm font-bold text-gray-700 mb-2">Keto Score Legend:</p>
+        <div className="flex gap-4 flex-wrap">
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded-full bg-green-500"></div>
+            <span className="text-sm text-gray-600">High (80%+)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded-full bg-yellow-500"></div>
+            <span className="text-sm text-gray-600">Medium (60-79%)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded-full bg-red-500"></div>
+            <span className="text-sm text-gray-600">Lower (40-59%)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded-full bg-blue-500"></div>
+            <span className="text-sm text-gray-600">Your Location</span>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Conditional Rendering: Map or List */}
+    {viewMode === 'map' ? (
+      <MapView 
+        restaurants={restaurants} 
+        center={mapCenter}
+        onRestaurantClick={(restaurant) => {
+          setSelectedRestaurant(restaurant);
+          loadReviews(restaurant);
+        }}
+      />
+    ) : (
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
+        {restaurants.map((restaurant) => (
+          <div
+            key={restaurant.id}
+            className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl p-4 sm:p-6 border-2 border-orange-100 active:scale-[0.99] transition-transform"
+          >
                   <div className="flex justify-between items-start mb-3 sm:mb-4">
                     <div className="flex-1 min-w-0 pr-2">
                       <h3 className="text-lg sm:text-2xl font-bold text-gray-800 mb-1 truncate">
@@ -666,7 +930,7 @@ export default function App() {
                     </div>
                     {restaurant.ketoReviews > 0 && (
                       <div className="flex items-center gap-1 text-green-600">
-                        <span className="text-xs">🥑</span>
+                        <span className="text-xs">🥩</span>
                         <span className="font-medium text-xs">{restaurant.ketoReviews} keto reviews</span>
                       </div>
                     )}
@@ -694,8 +958,25 @@ export default function App() {
                 </div>
               ))}
             </div>
-          </div>
-        )}
+          )}
+
+          {/* Load More Button */}
+          {allRestaurants.length > displayCount && (
+            <div className="text-center mt-6">
+              <button
+                onClick={() => {
+                  const newCount = displayCount + 10;
+                  setRestaurants(allRestaurants.slice(0, newCount));
+                  setDisplayCount(newCount);
+                }}
+                className="px-8 py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl hover:from-orange-600 hover:to-red-600 active:scale-95 transition font-bold text-lg shadow-lg"
+              >
+                Load More ({allRestaurants.length - displayCount} more nearby)
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
         {/* Empty state */}
         {!loading && restaurants.length === 0 && !error && (
@@ -763,7 +1044,7 @@ export default function App() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">🥑 Keto-Friendliness Rating</label>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">🥩 Keto-Friendliness Rating</label>
                   <div className="flex gap-1 sm:gap-2">
                     {[1, 2, 3, 4, 5].map(rating => (
                       <button
@@ -778,7 +1059,7 @@ export default function App() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">🍖 Keto Menu Items You Tried</label>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">🍽️ Keto Menu Items You Tried</label>
                   <input
                     type="text"
                     value={reviewForm.menuItems}
@@ -842,25 +1123,141 @@ export default function App() {
                 <div className="bg-gradient-to-r from-orange-50 to-red-50 p-3 rounded-xl border-2 border-orange-200 mt-4">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-bold text-gray-700 flex items-center gap-1">
-                      <span>🥑</span> KETO SCORE
+                      <span>🥩</span> KETO SCORE
                     </span>
                     <span className="text-sm font-black text-orange-600">
                       {Math.round(selectedRestaurant.ketoScore * 100)}%
                     </span>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-3 shadow-inner">
-                    <div
-                      className="bg-gradient-to-r from-orange-500 to-red-500 h-3 rounded-full transition-all shadow-md"
-                      style={{ width: `${selectedRestaurant.ketoScore * 100}%` }}
-                    ></div>
+ <div className="text-xs font-semibold text-gray-600 mb-2">
+  Keto Confidence:{' '}
+  {loadingSignals
+    ? 'Loading…'
+    : confidenceLabel(restaurantSignals?.keto_confidence)}
+  {!loadingSignals && restaurantSignals?.keto_confidence != null
+    ? ` (${Number(restaurantSignals.keto_confidence).toFixed(2)})`
+    : ''}
+</div>
+
+{!loadingSignals && restaurantSignals?.reasons && (
+  <div className="mt-2 mb-2 text-xs text-gray-700 italic bg-white/50 p-2 rounded border border-orange-200">
+    💡 {restaurantSignals.reasons}
+  </div>
+)}
+
+{/* Display found keto-friendly items */}
+{!loadingSignals && foundKetoFoods.length > 0 && (
+  <div className="mt-3 mb-2">
+    <p className="text-xs font-semibold text-gray-700 mb-1.5">
+      🍽️ Mentioned in reviews:
+    </p>
+    <div className="flex flex-wrap gap-1.5">
+      {foundKetoFoods.map((item, index) => (
+        <span 
+          key={index} 
+          className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-xs font-medium border border-green-300"
+        >
+          {item}
+        </span>
+      ))}
+    </div>
+  </div>
+)}
+
+{/* Optional: Show customization options found */}
+{!loadingSignals && foundCustomizations.length > 0 && (
+  <div className="mt-2 mb-2">
+    <p className="text-xs font-semibold text-gray-700 mb-1.5">
+      ✍️ Customization options available:
+    </p>
+    <div className="flex flex-wrap gap-1.5">
+      {foundCustomizations.map((item, index) => (
+        <span 
+          key={index} 
+          className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs font-medium border border-blue-300"
+        >
+          {item}
+        </span>
+      ))}
+    </div>
+  </div>
+)}
+<div className="w-full bg-gray-200 rounded-full h-3 shadow-inner">
+  <div
+    className="bg-gradient-to-r from-orange-500 to-red-500 h-3 rounded-full transition-all shadow-md"
+    style={{ width: `${selectedRestaurant.ketoScore * 100}%` }}
+  ></div>
+</div>
+              </div>
+            </div>
+
+
+            {/* NEW: Verified Chain Menu Section */}
+            {chainMenuData && chainMenuData.items.length > 0 && (
+              <div className="mb-6">
+                <div className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-xl p-4 border-2 border-emerald-300">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-2xl">✅</span>
+                    <div>
+                      <h4 className="text-lg font-bold text-emerald-800">
+                        Verified Menu - {chainMenuData.chainName}
+                      </h4>
+                      <p className="text-xs text-emerald-600">
+                        Nutrition data from official sources
+                      </p>
+                    </div>
                   </div>
+                  
+                  <div className="space-y-2">
+                    {chainMenuData.items.map((item, index) => (
+                      <div 
+                        key={index} 
+                        className="bg-white rounded-lg p-3 border border-emerald-200 shadow-sm"
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <p className="font-semibold text-gray-800 text-sm flex-1">
+                            {item.name}
+                          </p>
+                          <span className={`text-xs font-bold px-2 py-1 rounded ${
+                            item.carbs < 10 
+                              ? 'bg-green-100 text-green-700' 
+                              : 'bg-yellow-100 text-yellow-700'
+                          }`}>
+                            {item.carbs}g carbs
+                          </span>
+                        </div>
+                        
+                        <div className="flex gap-3 text-xs text-gray-600">
+                          <span>🔥 {item.calories} cal</span>
+                          <span>🍽️ {item.protein}g protein</span>
+                          <span>🥩 {item.fat}g fat</span>
+                        </div>
+                        {item.orderAs && (
+                          <p className="text-xs text-emerald-600 mt-1.5 font-medium">
+                            📋 Say: "{item.orderAs}"
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {chainMenuData.orderTips && chainMenuData.orderTips.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-emerald-200">
+                      <p className="text-xs font-bold text-emerald-700 mb-1.5">💡 Order Tips:</p>
+                      {chainMenuData.orderTips.map((tip, i) => (
+                        <p key={i} className="text-xs text-gray-600 mb-1">  {tip}</p>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
+            )}
 
-              <div className="mb-6">
-                <h4 className="text-lg sm:text-xl font-bold text-gray-800 mb-3 flex items-center gap-2">
-                  <span>🍴</span> Community Keto Picks
-                </h4>
+            <div className="mb-6">
+              <h4 className="text-lg sm:text-xl font-bold text-gray-800 mb-3 flex items-center gap-2">
+                <span>🍴</span> Community Keto Picks
+              </h4>
+              
                 {loadingReviews ? (
                   <div className="text-center py-4">
                     <Loader className="w-6 h-6 animate-spin mx-auto text-orange-500" />
@@ -961,7 +1358,7 @@ export default function App() {
                               <span className="text-xs sm:text-sm font-bold text-yellow-700">{review.overall_rating}</span>
                             </div>
                             <div className="flex items-center bg-green-100 px-2 py-1 rounded">
-                              <span className="text-xs sm:text-sm mr-1">🥑</span>
+                              <span className="text-xs sm:text-sm mr-1">🥩</span>
                               <span className="text-xs sm:text-sm font-bold text-green-700">{review.keto_rating}</span>
                             </div>
                           </div>
