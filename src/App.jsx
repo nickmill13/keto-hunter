@@ -40,6 +40,7 @@ export default function App() {
   const [foundCookingMethods, setFoundCookingMethods] = useState([]);
   const [chainMenuData, setChainMenuData] = useState(null);
   const [loadingChainMenu, setLoadingChainMenu] = useState(false);
+  const [showMobileRestaurantSearch, setShowMobileRestaurantSearch] = useState(false);
   const confidenceLabel = (conf) => {
   if (conf == null) return 'Unknown';
   const n = Number(conf);
@@ -574,7 +575,7 @@ const loadReviews = async (restaurant) => {
     return (
       <div 
         ref={mapRef} 
-        className="w-full h-[600px] rounded-2xl shadow-xl border-2 border-orange-200"
+        className="w-full h-[350px] sm:h-[600px] rounded-2xl shadow-xl border-2 border-orange-200"
       />
     );
 };
@@ -583,11 +584,11 @@ const loadReviews = async (restaurant) => {
     <div className="min-h-screen bg-gradient-to-br from-orange-400 via-red-400 to-pink-500">
       {/* Decorative emojis - hidden on mobile for cleaner look */}
       <div className="hidden md:block absolute inset-0 overflow-hidden pointer-events-none opacity-10">
-        <div className="absolute top-20 left-10 text-8xl">🥩</div>
-        <div className="absolute top-40 right-20 text-7xl">🥩</div>
-        <div className="absolute bottom-20 left-1/4 text-6xl">🍳</div>
-        <div className="absolute top-1/3 right-1/3 text-5xl">🥗</div>
-        <div className="absolute bottom-40 right-10 text-7xl">💰</div>
+        <div className="absolute top-20 left-10 text-8xl">ðŸ¥©</div>
+        <div className="absolute top-40 right-20 text-7xl">ðŸ¥©</div>
+        <div className="absolute bottom-20 left-1/4 text-6xl">ðŸ³</div>
+        <div className="absolute top-1/3 right-1/3 text-5xl">ðŸ¥—</div>
+        <div className="absolute bottom-40 right-10 text-7xl">ðŸ’°</div>
       </div>
 
       {/* Main container - responsive padding */}
@@ -613,7 +614,7 @@ const loadReviews = async (restaurant) => {
           <SignedIn>
             <div className="flex items-center gap-3">
               <span className="text-white/90 text-sm font-medium hidden sm:block">
-                Hey, {user?.firstName || 'Keto Hunter'}! 👋
+                Hey, {user?.firstName || 'Keto Hunter'}! ðŸ‘‹
               </span>
               <UserButton 
                 appearance={{
@@ -626,93 +627,119 @@ const loadReviews = async (restaurant) => {
           </SignedIn>
         </div>
 
-        {/* Header - responsive sizing */}
-        <div className="text-center mb-6 sm:mb-8">
-          <div className="flex items-center justify-center mb-3 sm:mb-4">
-            <div className="relative">
+        {/* Header - compact on mobile, full on desktop */}
+        <div className="text-center mb-4 sm:mb-8">
+          <div className="flex items-center justify-center gap-3 sm:flex-col sm:gap-0 mb-2 sm:mb-4">
+            <div className="relative sm:mb-3">
               <div className="absolute -inset-2 bg-gradient-to-r from-orange-300 to-yellow-400 rounded-full blur opacity-75"></div>
-              <div className="relative bg-white rounded-full p-3 sm:p-4 shadow-xl">
-                <span className="text-4xl sm:text-5xl">🍽️</span>
+              <div className="relative bg-white rounded-full p-2 sm:p-4 shadow-xl">
+                <span className="text-2xl sm:text-5xl">ðŸ½ï¸</span>
               </div>
             </div>
+            <h1 className="text-2xl sm:text-4xl md:text-6xl font-black text-white tracking-tight drop-shadow-lg">
+              KETO HUNTER
+            </h1>
           </div>
-          <h1 className="text-3xl sm:text-4xl md:text-6xl font-black text-white mb-2 tracking-tight drop-shadow-lg">
-            KETO HUNTER
-          </h1>
-          <div className="flex items-center justify-center gap-2 mb-2 sm:mb-3">
-            <div className="h-1 w-8 sm:w-12 bg-gradient-to-r from-transparent via-yellow-400 to-transparent rounded"></div>
-            <Award className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-400" />
-            <div className="h-1 w-8 sm:w-12 bg-gradient-to-r from-transparent via-yellow-400 to-transparent rounded"></div>
+          <div className="hidden sm:flex items-center justify-center gap-2 mb-3">
+            <div className="h-1 w-12 bg-gradient-to-r from-transparent via-yellow-400 to-transparent rounded"></div>
+            <Award className="w-5 h-5 text-yellow-400" />
+            <div className="h-1 w-12 bg-gradient-to-r from-transparent via-yellow-400 to-transparent rounded"></div>
           </div>
-          <p className="text-yellow-100 text-base sm:text-xl font-medium px-4">
-            Hunt down the best keto-friendly spots near you 🏹
+          <p className="text-yellow-100 text-sm sm:text-xl font-medium px-4 hidden sm:block">
+            Hunt down the best keto-friendly spots near you ðŸ¹
           </p>
         </div>
 
         {/* Search Card */}
-        <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-4 sm:p-6 mb-4 sm:mb-6 border-2 border-orange-300">
-          <div className="space-y-3 sm:space-y-4">
-            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-              <div className="flex-1 relative">
-                <MapPin className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 text-orange-600 w-5 h-5" />
-                <input
-                  type="text"
-                  placeholder="Enter location (city, zip, address)"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  className="w-full pl-10 sm:pl-12 pr-4 py-3 border-2 border-orange-200 rounded-xl focus:border-orange-500 focus:ring-2 focus:ring-orange-200 focus:outline-none text-gray-800 font-medium text-base"
-                />
-              </div>
-{/* NEW: Restaurant name search */}
-<div className="flex-1 relative">
-  <Search className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 text-orange-600 w-5 h-5" />
-  <input
-    type="text"
-    placeholder="Search for a specific restaurant (optional)"
-    value={restaurantQuery}
-    onChange={(e) => setRestaurantQuery(e.target.value)}
-    onKeyPress={handleKeyPress}
-    className="w-full pl-10 sm:pl-12 pr-4 py-3 border-2 border-orange-200 rounded-xl focus:border-orange-500 focus:ring-2 focus:ring-orange-200 focus:outline-none text-gray-800 font-medium text-base"
-  />
-</div>
+        <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-3 sm:p-6 mb-4 sm:mb-6 border-2 border-orange-300">
+          <div className="space-y-3">
+            {/* Location input */}
+            <div className="relative">
+              <MapPin className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 text-orange-600 w-5 h-5" />
+              <input
+                type="text"
+                placeholder="City, zip, or address"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                onKeyPress={handleKeyPress}
+                className="w-full pl-10 sm:pl-12 pr-4 py-3 border-2 border-orange-200 rounded-xl focus:border-orange-500 focus:ring-2 focus:ring-orange-200 focus:outline-none text-gray-800 font-medium text-base"
+              />
+            </div>
+
+            {/* Restaurant search - always visible on desktop */}
+            <div className="hidden sm:block relative">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-orange-600 w-5 h-5" />
+              <input
+                type="text"
+                placeholder="Search for a specific restaurant (optional)"
+                value={restaurantQuery}
+                onChange={(e) => setRestaurantQuery(e.target.value)}
+                onKeyPress={handleKeyPress}
+                className="w-full pl-12 pr-4 py-3 border-2 border-orange-200 rounded-xl focus:border-orange-500 focus:ring-2 focus:ring-orange-200 focus:outline-none text-gray-800 font-medium text-base"
+              />
+            </div>
+
+            {/* Mobile: collapsible restaurant search */}
+            <div className="sm:hidden">
+              <button
+                onClick={() => setShowMobileRestaurantSearch(!showMobileRestaurantSearch)}
+                className="text-orange-600 text-sm font-semibold flex items-center gap-1"
+              >
+                <Search className="w-4 h-4" />
+                {showMobileRestaurantSearch ? 'Hide restaurant search' : 'Search specific restaurant'}
+              </button>
+              {showMobileRestaurantSearch && (
+                <div className="relative mt-2">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-orange-600 w-4 h-4" />
+                  <input
+                    type="text"
+                    placeholder="Restaurant name"
+                    value={restaurantQuery}
+                    onChange={(e) => setRestaurantQuery(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                    className="w-full pl-9 pr-4 py-2.5 border-2 border-orange-200 rounded-xl focus:border-orange-500 focus:ring-2 focus:ring-orange-200 focus:outline-none text-gray-800 font-medium text-sm"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Action row */}
+            <div className="flex gap-2">
+              {/* Use My Location - primary on mobile, secondary on desktop */}
               <button
                 onClick={getCurrentLocation}
                 disabled={loading}
-                className="w-full sm:w-auto px-4 sm:px-6 py-3 bg-gradient-to-r from-orange-100 to-yellow-100 text-orange-800 rounded-xl hover:from-orange-200 hover:to-yellow-200 active:scale-95 transition flex items-center justify-center gap-2 disabled:opacity-50 font-semibold border-2 border-orange-200"
+                className="flex-1 sm:flex-none sm:w-auto px-4 sm:px-6 py-3 bg-gradient-to-r from-orange-500 to-red-500 sm:from-orange-100 sm:to-yellow-100 text-white sm:text-orange-800 rounded-xl sm:hover:from-orange-200 sm:hover:to-yellow-200 active:scale-95 transition flex items-center justify-center gap-2 disabled:opacity-50 font-semibold sm:border-2 sm:border-orange-200 shadow-lg sm:shadow-none"
               >
                 <Navigation className="w-5 h-5" />
                 <span>Use My Location</span>
               </button>
-            </div>
-            
-            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+
+              {/* Search button - icon-only on mobile, full label on desktop */}
               <button
                 onClick={handleSearch}
                 disabled={loading}
-                className="flex-1 bg-gradient-to-r from-orange-500 to-red-500 text-white py-4 rounded-xl hover:from-orange-600 hover:to-red-600 active:scale-[0.98] transition font-bold text-base sm:text-lg flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg"
+                className="px-4 sm:flex-1 sm:px-6 py-3 bg-gradient-to-r from-orange-100 to-yellow-100 sm:from-orange-500 sm:to-red-500 text-orange-800 sm:text-white rounded-xl sm:hover:from-orange-600 sm:hover:to-red-600 active:scale-95 transition flex items-center justify-center gap-2 disabled:opacity-50 font-bold sm:text-lg border-2 border-orange-200 sm:border-0 sm:shadow-lg"
               >
                 {loading ? (
-                  <>
-                    <Loader className="w-5 h-5 sm:w-6 sm:h-6 animate-spin" />
-                    Hunting...
-                  </>
+                  <Loader className="w-5 h-5 animate-spin" />
                 ) : (
                   <>
-                    <Search className="w-5 h-5 sm:w-6 sm:h-6" />
-                    Start The Hunt 🎯
+                    <Search className="w-5 h-5" />
+                    <span className="hidden sm:inline">Start The Hunt 🎯</span>
                   </>
                 )}
               </button>
-              
+
+              {/* Filters - icon + badge on mobile, full on desktop */}
               <button
                 onClick={() => setShowFilters(!showFilters)}
-                className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-yellow-100 to-amber-100 text-orange-800 rounded-xl hover:from-yellow-200 hover:to-amber-200 active:scale-95 transition flex items-center justify-center gap-2 font-semibold border-2 border-yellow-200"
+                className="px-3 py-3 bg-gradient-to-r from-yellow-100 to-amber-100 text-orange-800 rounded-xl hover:from-yellow-200 hover:to-amber-200 active:scale-95 transition flex items-center justify-center gap-1.5 font-semibold border-2 border-yellow-200 relative"
               >
                 <Filter className="w-5 h-5" />
-                <span>Filters</span>
+                <span className="hidden sm:inline">Filters</span>
                 {(filters.cuisineTypes.length > 0 || filters.diningOptions.length > 0) && (
-                  <span className="bg-orange-500 text-white text-xs px-2 py-0.5 rounded-full">
+                  <span className="bg-orange-500 text-white text-xs px-1.5 py-0.5 rounded-full absolute -top-1.5 -right-1.5 min-w-[18px] text-center">
                     {filters.cuisineTypes.length + filters.diningOptions.length}
                   </span>
                 )}
@@ -737,7 +764,7 @@ const loadReviews = async (restaurant) => {
             
             <div className="mb-5 sm:mb-6">
               <label className="block text-sm font-bold text-gray-700 mb-2">
-                🏹 Max Distance: <span className="text-orange-600">{filters.maxDistance} miles</span>
+                ðŸ¹ Max Distance: <span className="text-orange-600">{filters.maxDistance} miles</span>
               </label>
               <input
                 type="range"
@@ -750,7 +777,7 @@ const loadReviews = async (restaurant) => {
             </div>
 
             <div className="mb-5 sm:mb-6">
-              <label className="block text-sm font-bold text-gray-700 mb-2">💰 Price Range</label>
+              <label className="block text-sm font-bold text-gray-700 mb-2">ðŸ’° Price Range</label>
               <div className="flex gap-2">
                 {[1, 2, 3, 4].map(level => (
                   <button
@@ -769,7 +796,7 @@ const loadReviews = async (restaurant) => {
             </div>
 
             <div className="mb-5 sm:mb-6">
-              <label className="block text-sm font-bold text-gray-700 mb-2">🍽️ Cuisine Type</label>
+              <label className="block text-sm font-bold text-gray-700 mb-2">ðŸ½ï¸ Cuisine Type</label>
               <div className="flex flex-wrap gap-2">
                 {cuisineOptions.map(cuisine => (
                   <button
@@ -788,7 +815,7 @@ const loadReviews = async (restaurant) => {
             </div>
 
             <div className="mb-4">
-              <label className="block text-sm font-bold text-gray-700 mb-2">🍽️ Dining Options</label>
+              <label className="block text-sm font-bold text-gray-700 mb-2">ðŸ½ï¸ Dining Options</label>
               <div className="flex flex-wrap gap-2">
                 {diningOptionsData.map(option => (
                   <button
@@ -825,35 +852,35 @@ const loadReviews = async (restaurant) => {
         {/* Results section */}
 {restaurants.length > 0 && (
   <div>
-    <div className="flex items-center justify-between mb-4 sm:mb-6">
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6 gap-3">
       <div className="flex items-center gap-2 sm:gap-3">
         <TrendingUp className="w-5 h-5 sm:w-7 sm:h-7 text-yellow-300" />
-        <h2 className="text-xl sm:text-3xl font-black text-white drop-shadow-lg">
-          Found {allRestaurants.length} Keto Spot{allRestaurants.length !== 1 ? 's' : ''} 🔥
+        <h2 className="text-lg sm:text-3xl font-black text-white drop-shadow-lg">
+          Found {allRestaurants.length} Keto Spot{allRestaurants.length !== 1 ? 's' : ''} ðŸ”¥
         </h2>
       </div>
       
       {/* NEW: View Toggle */}
-      <div className="flex gap-2 bg-white/90 rounded-xl p-1 shadow-lg">
+      <div className="flex gap-1 bg-white/90 rounded-xl p-1 shadow-lg self-start sm:self-auto">
         <button
           onClick={() => setViewMode('list')}
-          className={`px-4 py-2 rounded-lg font-semibold text-sm transition ${
+          className={`px-3 py-1.5 rounded-lg font-semibold text-sm transition ${
             viewMode === 'list'
               ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white'
               : 'text-gray-600 hover:text-gray-800'
           }`}
         >
-          📋 List
+          ðŸ“‹ List
         </button>
         <button
           onClick={() => setViewMode('map')}
-          className={`px-4 py-2 rounded-lg font-semibold text-sm transition ${
+          className={`px-3 py-1.5 rounded-lg font-semibold text-sm transition ${
             viewMode === 'map'
               ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white'
               : 'text-gray-600 hover:text-gray-800'
           }`}
         >
-          🗺️ Map
+          ðŸ—ºï¸ Map
         </button>
       </div>
     </div>
@@ -898,34 +925,43 @@ const loadReviews = async (restaurant) => {
         {restaurants.map((restaurant) => (
           <div
             key={restaurant.id}
-            className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl p-4 sm:p-6 border-2 border-orange-100 active:scale-[0.99] transition-transform"
+            className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl p-3 sm:p-6 border-2 border-orange-100 active:scale-[0.98] transition-transform cursor-pointer sm:cursor-default"
           >
-                  <div className="flex justify-between items-start mb-3 sm:mb-4">
+                  <div
+                    className="sm:contents"
+                    onClick={() => {
+                      setSelectedRestaurant(restaurant);
+                      loadReviews(restaurant);
+                    }}
+                  >
+                  <div className="flex justify-between items-start mb-2">
                     <div className="flex-1 min-w-0 pr-2">
-                      <h3 className="text-lg sm:text-2xl font-bold text-gray-800 mb-1 truncate">
+                      <h3 className="text-base sm:text-2xl font-bold text-gray-800 mb-0.5 truncate">
                         {restaurant.name}
                       </h3>
-                      <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center gap-2">
                         <p className="text-gray-600 text-sm font-semibold">{restaurant.cuisine}</p>
                         <span className="text-gray-400">•</span>
                         <p className="text-orange-600 text-sm font-bold">
                           {getPriceSymbol(restaurant.priceLevel)}
                         </p>
+                        <span className="text-gray-400">•</span>
+                        <div className="flex items-center gap-1">
+                          <MapPin className="w-3.5 h-3.5 text-orange-500" />
+                          <span className="text-sm font-medium text-gray-600">{restaurant.distance} mi</span>
+                        </div>
                       </div>
                     </div>
-                    <div className="bg-gradient-to-br from-orange-500 to-red-500 text-white px-2 sm:px-3 py-1 rounded-xl shadow-lg shrink-0">
-                      <div className="text-xs font-bold text-orange-200">KETO</div>
-                      <div className="text-lg sm:text-xl font-black">{Math.round(restaurant.ketoScore * 100)}%</div>
+                    <div className="bg-gradient-to-br from-orange-500 to-red-500 text-white px-2 py-1 rounded-lg shadow-lg shrink-0 text-center">
+                      <div className="text-xs font-bold text-orange-200 leading-none">KETO</div>
+                      <div className="text-base font-black leading-tight">{Math.round(restaurant.ketoScore * 100)}%</div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 sm:gap-4 mb-3 sm:mb-4 text-sm">
+                  {/* Rating + reviews row */}
+                  <div className="flex items-center gap-3 text-sm mb-1.5">
                     <div className="flex items-center gap-1 text-gray-600">
-                      <MapPin className="w-4 h-4 text-orange-500" />
-                      <span className="font-medium">{restaurant.distance} mi</span>
-                    </div>
-                    <div className="flex items-center gap-1 text-gray-600">
-                      <Star className="w-4 h-4 text-yellow-500 fill-current" />
+                      <Star className="w-3.5 h-3.5 text-yellow-500 fill-current" />
                       <span className="font-medium">{restaurant.rating}</span>
                     </div>
                     {restaurant.ketoReviews > 0 && (
@@ -936,24 +972,44 @@ const loadReviews = async (restaurant) => {
                     )}
                   </div>
 
-                  <p className="text-gray-500 text-sm mb-3 truncate">{restaurant.address}</p>
+                  <p className="text-gray-500 text-xs sm:text-sm truncate">{restaurant.address}</p>
+                  </div>
 
-                  <div className="flex gap-2 sm:gap-3">
+                  {/* Desktop: action buttons */}
+                  <div className="hidden sm:flex gap-3 mt-3">
                     <button
                       onClick={() => {
                         setSelectedRestaurant(restaurant);
                         loadReviews(restaurant);
                       }}
-                      className="flex-1 bg-gradient-to-r from-orange-500 to-red-500 text-white py-3 rounded-xl hover:from-orange-600 hover:to-red-600 active:scale-[0.98] transition font-bold text-sm sm:text-base shadow-lg"
+                      className="flex-1 bg-gradient-to-r from-orange-500 to-red-500 text-white py-3 rounded-xl hover:from-orange-600 hover:to-red-600 active:scale-[0.98] transition font-bold text-base shadow-lg"
                     >
                       View Details
                     </button>
                     <button
-                      onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(restaurant.name + ' ' + restaurant.address)}`, '_blank')}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(restaurant.name + ' ' + restaurant.address)}`, '_blank');
+                      }}
                       className="px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition active:scale-95"
                     >
                       <Navigation className="w-5 h-5" />
                     </button>
+                  </div>
+
+                  {/* Mobile: hint + directions link */}
+                  <div className="flex sm:hidden items-center justify-between mt-2 pt-2 border-t border-gray-100">
+                    <span className="text-xs text-gray-400 italic">Tap for details</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(restaurant.name + ' ' + restaurant.address)}`, '_blank');
+                      }}
+                      className="flex items-center gap-1 text-orange-600 text-xs font-semibold"
+                    >
+                      <Navigation className="w-3.5 h-3.5" /> Directions
+                    </button>
+                  </div>                    </button>
                   </div>
                 </div>
               ))}
@@ -1001,7 +1057,7 @@ const loadReviews = async (restaurant) => {
           <div className="bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-3xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto shadow-2xl border-t-2 sm:border-2 border-orange-200">
             <div className="sticky top-0 bg-white px-4 sm:px-6 py-4 border-b border-gray-100 flex justify-between items-center">
               <h3 className="text-xl sm:text-2xl font-black text-gray-800 flex items-center gap-2">
-                <span>✍️</span> Add Keto Review
+                <span>âœï¸</span> Add Keto Review
               </h3>
               <button
                 onClick={() => setShowReviewModal(false)}
@@ -1044,7 +1100,7 @@ const loadReviews = async (restaurant) => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">🥩 Keto-Friendliness Rating</label>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">ðŸ¥© Keto-Friendliness Rating</label>
                   <div className="flex gap-1 sm:gap-2">
                     {[1, 2, 3, 4, 5].map(rating => (
                       <button
@@ -1059,7 +1115,7 @@ const loadReviews = async (restaurant) => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">🍽️ Keto Menu Items You Tried</label>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">ðŸ½ï¸ Keto Menu Items You Tried</label>
                   <input
                     type="text"
                     value={reviewForm.menuItems}
@@ -1114,16 +1170,34 @@ const loadReviews = async (restaurant) => {
             </div>
 
             <div className="px-4 sm:px-6 py-4 pb-8">
-              <div className="mb-6 space-y-2">
-                <p className="text-gray-600 text-sm sm:text-base"><strong>Address:</strong> {selectedRestaurant.address}</p>
-                <p className="text-gray-600 text-sm sm:text-base"><strong>Distance:</strong> {selectedRestaurant.distance} miles</p>
-                <p className="text-gray-600 text-sm sm:text-base"><strong>Cuisine:</strong> {selectedRestaurant.cuisine}</p>
-                <p className="text-gray-600 text-sm sm:text-base"><strong>Price:</strong> {getPriceSymbol(selectedRestaurant.priceLevel)}</p>
+              {/* Mobile: compact quick-info bar with directions CTA */}
+              <div className="flex sm:hidden items-center justify-between bg-gray-50 rounded-xl px-3 py-2 mb-4 border border-gray-200">
+                <div className="flex items-center gap-3 text-sm text-gray-600">
+                  <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5 text-orange-500" />{selectedRestaurant.distance} mi</span>
+                  <span className="flex items-center gap-1"><Star className="w-3.5 h-3.5 text-yellow-500 fill-current" />{selectedRestaurant.rating}</span>
+                  <span className="font-semibold text-orange-600">{getPriceSymbol(selectedRestaurant.priceLevel)}</span>
+                </div>
+                <button
+                  onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedRestaurant.name + ' ' + selectedRestaurant.address)}`, '_blank')}
+                  className="bg-orange-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 active:scale-95 transition"
+                >
+                  <Navigation className="w-3.5 h-3.5" /> Directions
+                </button>
+              </div>
+              {/* Mobile: just the address in small text */}
+              <p className="text-gray-500 text-xs sm:hidden truncate mb-4">{selectedRestaurant.address}</p>
 
-                <div className="bg-gradient-to-r from-orange-50 to-red-50 p-3 rounded-xl border-2 border-orange-200 mt-4">
+              <div className="mb-4 space-y-1.5">
+                {/* Desktop: full detail rows */}
+                <p className="text-gray-600 text-sm sm:text-base hidden sm:block"><strong>Address:</strong> {selectedRestaurant.address}</p>
+                <p className="text-gray-600 text-sm sm:text-base hidden sm:block"><strong>Distance:</strong> {selectedRestaurant.distance} miles</p>
+                <p className="text-gray-600 text-sm sm:text-base hidden sm:block"><strong>Cuisine:</strong> {selectedRestaurant.cuisine}</p>
+                <p className="text-gray-600 text-sm sm:text-base hidden sm:block"><strong>Price:</strong> {getPriceSymbol(selectedRestaurant.priceLevel)}</p>
+
+                <div className="bg-gradient-to-r from-orange-50 to-red-50 p-3 rounded-xl border-2 border-orange-200 mt-2 sm:mt-4">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-bold text-gray-700 flex items-center gap-1">
-                      <span>🥩</span> KETO SCORE
+                      <span>ðŸ¥©</span> KETO SCORE
                     </span>
                     <span className="text-sm font-black text-orange-600">
                       {Math.round(selectedRestaurant.ketoScore * 100)}%
@@ -1132,7 +1206,7 @@ const loadReviews = async (restaurant) => {
  <div className="text-xs font-semibold text-gray-600 mb-2">
   Keto Confidence:{' '}
   {loadingSignals
-    ? 'Loading…'
+    ? 'Loadingâ€¦'
     : confidenceLabel(restaurantSignals?.keto_confidence)}
   {!loadingSignals && restaurantSignals?.keto_confidence != null
     ? ` (${Number(restaurantSignals.keto_confidence).toFixed(2)})`
@@ -1141,7 +1215,7 @@ const loadReviews = async (restaurant) => {
 
 {!loadingSignals && restaurantSignals?.reasons && (
   <div className="mt-2 mb-2 text-xs text-gray-700 italic bg-white/50 p-2 rounded border border-orange-200">
-    💡 {restaurantSignals.reasons}
+    ðŸ’¡ {restaurantSignals.reasons}
   </div>
 )}
 
@@ -1149,7 +1223,7 @@ const loadReviews = async (restaurant) => {
 {!loadingSignals && foundKetoFoods.length > 0 && (
   <div className="mt-3 mb-2">
     <p className="text-xs font-semibold text-gray-700 mb-1.5">
-      🍽️ Mentioned in reviews:
+      ðŸ½ï¸ Mentioned in reviews:
     </p>
     <div className="flex flex-wrap gap-1.5">
       {foundKetoFoods.map((item, index) => (
@@ -1168,7 +1242,7 @@ const loadReviews = async (restaurant) => {
 {!loadingSignals && foundCustomizations.length > 0 && (
   <div className="mt-2 mb-2">
     <p className="text-xs font-semibold text-gray-700 mb-1.5">
-      ✍️ Customization options available:
+      âœï¸ Customization options available:
     </p>
     <div className="flex flex-wrap gap-1.5">
       {foundCustomizations.map((item, index) => (
@@ -1197,7 +1271,7 @@ const loadReviews = async (restaurant) => {
               <div className="mb-6">
                 <div className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-xl p-4 border-2 border-emerald-300">
                   <div className="flex items-center gap-2 mb-3">
-                    <span className="text-2xl">✅</span>
+                    <span className="text-2xl">âœ…</span>
                     <div>
                       <h4 className="text-lg font-bold text-emerald-800">
                         Verified Menu - {chainMenuData.chainName}
@@ -1228,13 +1302,13 @@ const loadReviews = async (restaurant) => {
                         </div>
                         
                         <div className="flex gap-3 text-xs text-gray-600">
-                          <span>🔥 {item.calories} cal</span>
-                          <span>🍽️ {item.protein}g protein</span>
-                          <span>🥩 {item.fat}g fat</span>
+                          <span>ðŸ”¥ {item.calories} cal</span>
+                          <span>ðŸ½ï¸ {item.protein}g protein</span>
+                          <span>ðŸ¥© {item.fat}g fat</span>
                         </div>
                         {item.orderAs && (
                           <p className="text-xs text-emerald-600 mt-1.5 font-medium">
-                            📋 Say: "{item.orderAs}"
+                            ðŸ“‹ Say: "{item.orderAs}"
                           </p>
                         )}
                       </div>
@@ -1243,7 +1317,7 @@ const loadReviews = async (restaurant) => {
                   
                   {chainMenuData.orderTips && chainMenuData.orderTips.length > 0 && (
                     <div className="mt-3 pt-3 border-t border-emerald-200">
-                      <p className="text-xs font-bold text-emerald-700 mb-1.5">💡 Order Tips:</p>
+                      <p className="text-xs font-bold text-emerald-700 mb-1.5">ðŸ’¡ Order Tips:</p>
                       {chainMenuData.orderTips.map((tip, i) => (
                         <p key={i} className="text-xs text-gray-600 mb-1">  {tip}</p>
                       ))}
@@ -1255,7 +1329,7 @@ const loadReviews = async (restaurant) => {
 
             <div className="mb-6">
               <h4 className="text-lg sm:text-xl font-bold text-gray-800 mb-3 flex items-center gap-2">
-                <span>🍴</span> Community Keto Picks
+                <span>ðŸ´</span> Community Keto Picks
               </h4>
               
                 {loadingReviews ? (
@@ -1285,7 +1359,7 @@ const loadReviews = async (restaurant) => {
                       <div className="border-t border-gray-200 pt-3 mt-3">
                         <div className="flex items-center gap-2 mb-2">
                           <span className="text-purple-600 text-xs font-bold uppercase tracking-wide">
-                            🤖 AI-Suggested Keto Options
+                            ðŸ¤– AI-Suggested Keto Options
                           </span>
                         </div>
                         <p className="text-gray-400 text-xs mb-2 italic">
@@ -1358,7 +1432,7 @@ const loadReviews = async (restaurant) => {
                               <span className="text-xs sm:text-sm font-bold text-yellow-700">{review.overall_rating}</span>
                             </div>
                             <div className="flex items-center bg-green-100 px-2 py-1 rounded">
-                              <span className="text-xs sm:text-sm mr-1">🥩</span>
+                              <span className="text-xs sm:text-sm mr-1">ðŸ¥©</span>
                               <span className="text-xs sm:text-sm font-bold text-green-700">{review.keto_rating}</span>
                             </div>
                           </div>
