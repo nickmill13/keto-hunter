@@ -1,5 +1,10 @@
 import React, { useState } from 'react';
-import { Search, MapPin, Utensils, Star, Navigation, Loader, Filter, X, MessageSquare, Send, Award, TrendingUp, User } from 'lucide-react';
+import { 
+  Search, MapPin, Utensils, Star, Navigation, Loader, Filter, X, 
+  MessageSquare, Send, Award, TrendingUp, User, Target, Sparkles,
+  Map, Flame, Pencil, AlertTriangle, CheckCircle, DollarSign, Hand,
+  Lightbulb, FileText, UtensilsCrossed
+} from 'lucide-react';
 import {
   SignedIn,
   SignedOut,
@@ -41,6 +46,18 @@ export default function App() {
   const [chainMenuData, setChainMenuData] = useState(null);
   const [loadingChainMenu, setLoadingChainMenu] = useState(false);
   const [showMobileRestaurantSearch, setShowMobileRestaurantSearch] = useState(false);
+  const [showEditReviewModal, setShowEditReviewModal] = useState(false);
+  const [editingReview, setEditingReview] = useState(null);
+  const [editingReviewForm, setEditingReviewForm] = useState({
+    rating: 5,
+    ketoRating: 5,
+    comment: '',
+    menuItems: ''
+  });
+  const [reviewToDelete, setReviewToDelete] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletingReviewId, setDeletingReviewId] = useState(null);
+
   const confidenceLabel = (conf) => {
   if (conf == null) return 'Unknown';
   const n = Number(conf);
@@ -407,6 +424,106 @@ const loadReviews = async (restaurant) => {
     }
   };
 
+  const handleEditReview = (review) => {
+    setEditingReview(review);
+    setEditingReviewForm({
+      rating: review.overall_rating,
+      ketoRating: review.keto_rating,
+      comment: review.comment,
+      menuItems: review.menu_items || ''
+    });
+    setShowEditReviewModal(true);
+  };
+
+  const submitEditedReview = async () => {
+    if (!editingReview) return;
+    if (!editingReviewForm.comment.trim()) {
+      alert('Please write a review');
+      return;
+    }
+
+    const token = await getToken();
+
+    try {
+      const response = await fetch(`${BASE_URL}/api/reviews/${editingReview.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(editingReviewForm)
+      });
+
+      if (response.status === 401) {
+        alert('Your session has expired. Please sign in again.');
+        return;
+      }
+
+      if (response.ok) {
+        alert('Review updated!');
+        setShowEditReviewModal(false);
+        setEditingReview(null);
+        // Reload reviews
+        if (selectedRestaurant) {
+          loadReviews(selectedRestaurant);
+          setShowDetailsModal(true);
+        }
+      } else {
+        const errorData = await response.json();
+        alert(errorData.error || 'Failed to update review. Please try again.');
+      }
+    } catch (err) {
+      console.error('Error updating review:', err);
+      alert('Failed to update review. Please try again.');
+    }
+  };
+
+  const handleDeleteReview = async (review) => {
+    setReviewToDelete(review);
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDeleteReview = async () => {
+    if (!reviewToDelete) return;
+
+    setDeletingReviewId(reviewToDelete.id);
+    const token = await getToken();
+
+    try {
+      const response = await fetch(`${BASE_URL}/api/reviews/${reviewToDelete.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.status === 401) {
+        alert('Your session has expired. Please sign in again.');
+        return;
+      }
+
+      if (response.ok) {
+        alert('Review deleted!');
+        setShowDeleteConfirm(false);
+        setReviewToDelete(null);
+        setDeletingReviewId(null);
+        // Reload reviews
+        if (selectedRestaurant) {
+          loadReviews(selectedRestaurant);
+          setShowDetailsModal(true);
+        }
+      } else {
+        const errorData = await response.json();
+        alert(errorData.error || 'Failed to delete review. Please try again.');
+      }
+    } catch (err) {
+      console.error('Error deleting review:', err);
+      alert('Failed to delete review. Please try again.');
+    } finally {
+      setDeletingReviewId(null);
+    }
+  };
+
   const getDemoRestaurants = () => [
     {
       id: 1,
@@ -584,11 +701,11 @@ const loadReviews = async (restaurant) => {
     <div className="min-h-screen bg-gradient-to-br from-orange-400 via-red-400 to-pink-500">
       {/* Decorative emojis - hidden on mobile for cleaner look */}
       <div className="hidden md:block absolute inset-0 overflow-hidden pointer-events-none opacity-10">
-        <div className="absolute top-20 left-10 text-8xl">ðŸ¥©</div>
-        <div className="absolute top-40 right-20 text-7xl">ðŸ¥©</div>
-        <div className="absolute bottom-20 left-1/4 text-6xl">ðŸ³</div>
-        <div className="absolute top-1/3 right-1/3 text-5xl">ðŸ¥—</div>
-        <div className="absolute bottom-40 right-10 text-7xl">ðŸ’°</div>
+        <div className="absolute top-20 left-10 text-8xl flex items-center justify-center"><Flame className="w-16 h-16 text-orange-600" /></div>
+        <div className="absolute top-40 right-20 text-7xl flex items-center justify-center"><Flame className="w-14 h-14 text-orange-600" /></div>
+        <div className="absolute bottom-20 left-1/4 text-6xl flex items-center justify-center"><Utensils className="w-12 h-12 text-orange-600" /></div>
+        <div className="absolute top-1/3 right-1/3 text-5xl flex items-center justify-center"><Flame className="w-10 h-10 text-green-600" /></div>
+        <div className="absolute bottom-40 right-10 text-7xl flex items-center justify-center"><DollarSign className="w-14 h-14 text-yellow-600" /></div>
       </div>
 
       {/* Main container - responsive padding */}
@@ -614,7 +731,7 @@ const loadReviews = async (restaurant) => {
           <SignedIn>
             <div className="flex items-center gap-3">
               <span className="text-white/90 text-sm font-medium hidden sm:block">
-                Hey, {user?.firstName || 'Keto Hunter'}! ðŸ‘‹
+                Hey, {user?.firstName || 'Keto Hunter'}! <Hand className="inline w-4 h-4 ml-1" />
               </span>
               <UserButton 
                 appearance={{
@@ -633,7 +750,7 @@ const loadReviews = async (restaurant) => {
             <div className="relative sm:mb-3">
               <div className="absolute -inset-2 bg-gradient-to-r from-orange-300 to-yellow-400 rounded-full blur opacity-75"></div>
               <div className="relative bg-white rounded-full p-2 sm:p-4 shadow-xl">
-                <span className="text-2xl sm:text-5xl">ðŸ½ï¸</span>
+                <Utensils className="w-8 h-8 sm:w-12 sm:h-12 text-orange-600" />
               </div>
             </div>
             <h1 className="text-2xl sm:text-4xl md:text-6xl font-black text-white tracking-tight drop-shadow-lg">
@@ -646,7 +763,7 @@ const loadReviews = async (restaurant) => {
             <div className="h-1 w-12 bg-gradient-to-r from-transparent via-yellow-400 to-transparent rounded"></div>
           </div>
           <p className="text-yellow-100 text-sm sm:text-xl font-medium px-4 hidden sm:block">
-            Hunt down the best keto-friendly spots near you ðŸ¹
+            Hunt down the best keto-friendly spots near you 
           </p>
         </div>
 
@@ -703,45 +820,48 @@ const loadReviews = async (restaurant) => {
               )}
             </div>
 
-            {/* Action row */}
-            <div className="flex gap-2">
-              {/* Use My Location - primary on mobile, secondary on desktop */}
-              <button
-                onClick={getCurrentLocation}
-                disabled={loading}
-                className="flex-1 sm:flex-none sm:w-auto px-4 sm:px-6 py-3 bg-gradient-to-r from-orange-500 to-red-500 sm:from-orange-100 sm:to-yellow-100 text-white sm:text-orange-800 rounded-xl sm:hover:from-orange-200 sm:hover:to-yellow-200 active:scale-95 transition flex items-center justify-center gap-2 disabled:opacity-50 font-semibold sm:border-2 sm:border-orange-200 shadow-lg sm:shadow-none"
-              >
-                <Navigation className="w-5 h-5" />
-                <span>Use My Location</span>
-              </button>
+            {/* Main action area with side buttons */}
+            <div className="flex gap-2 items-stretch">
+              {/* Left: Location & Filter buttons (stacked on mobile, side-by-side on desktop) */}
+              <div className="flex flex-col sm:flex-row gap-2">
+                {/* Use My Location - compact button */}
+                <button
+                  onClick={getCurrentLocation}
+                  disabled={loading}
+                  className="p-3 bg-orange-100 hover:bg-orange-200 text-orange-800 rounded-xl active:scale-95 transition border-2 border-orange-200 disabled:opacity-50 flex items-center justify-center"
+                  title="Use My Location"
+                >
+                  <Navigation className="w-5 h-5" />
+                </button>
 
-              {/* Search button - icon-only on mobile, full label on desktop */}
+                {/* Filters - compact button */}
+                <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="p-3 bg-yellow-100 hover:bg-yellow-200 text-orange-800 rounded-xl active:scale-95 transition border-2 border-yellow-200 relative flex items-center justify-center"
+                  title="Filters"
+                >
+                  <Filter className="w-5 h-5" />
+                  {(filters.cuisineTypes.length > 0 || filters.diningOptions.length > 0) && (
+                    <span className="bg-orange-500 text-white text-xs px-1.5 py-0.5 rounded-full absolute -top-1.5 -right-1.5 min-w-[18px] text-center font-semibold">
+                      {filters.cuisineTypes.length + filters.diningOptions.length}
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              {/* Center: Main Search button - takes remaining space */}
               <button
                 onClick={handleSearch}
                 disabled={loading}
-                className="px-4 sm:flex-1 sm:px-6 py-3 bg-gradient-to-r from-orange-100 to-yellow-100 sm:from-orange-500 sm:to-red-500 text-orange-800 sm:text-white rounded-xl sm:hover:from-orange-600 sm:hover:to-red-600 active:scale-95 transition flex items-center justify-center gap-2 disabled:opacity-50 font-bold sm:text-lg border-2 border-orange-200 sm:border-0 sm:shadow-lg"
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl hover:from-orange-600 hover:to-red-600 active:scale-95 transition flex items-center justify-center gap-2 disabled:opacity-50 font-bold text-base sm:text-lg shadow-lg"
               >
                 {loading ? (
                   <Loader className="w-5 h-5 animate-spin" />
                 ) : (
                   <>
                     <Search className="w-5 h-5" />
-                    <span className="hidden sm:inline">Start The Hunt 🎯</span>
+                    <span>Start Hunt <Target className="inline w-5 h-5 ml-1 hidden sm:inline" /></span>
                   </>
-                )}
-              </button>
-
-              {/* Filters - icon + badge on mobile, full on desktop */}
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className="px-3 py-3 bg-gradient-to-r from-yellow-100 to-amber-100 text-orange-800 rounded-xl hover:from-yellow-200 hover:to-amber-200 active:scale-95 transition flex items-center justify-center gap-1.5 font-semibold border-2 border-yellow-200 relative"
-              >
-                <Filter className="w-5 h-5" />
-                <span className="hidden sm:inline">Filters</span>
-                {(filters.cuisineTypes.length > 0 || filters.diningOptions.length > 0) && (
-                  <span className="bg-orange-500 text-white text-xs px-1.5 py-0.5 rounded-full absolute -top-1.5 -right-1.5 min-w-[18px] text-center">
-                    {filters.cuisineTypes.length + filters.diningOptions.length}
-                  </span>
                 )}
               </button>
             </div>
@@ -754,6 +874,36 @@ const loadReviews = async (restaurant) => {
           </div>
         </div>
 
+        {/* Map/List View Toggle - Always visible when there are results OR after first search */}
+        {(restaurants.length > 0 || allRestaurants.length > 0) && (
+          <div className="mb-4 sm:mb-6">
+            <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl p-2 border-2 border-orange-200 inline-flex">
+              <button
+                onClick={() => setViewMode('list')}
+                className={`px-4 sm:px-6 py-2.5 rounded-xl font-bold text-sm sm:text-base transition flex items-center gap-2 ${
+                  viewMode === 'list'
+                    ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md'
+                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+                }`}
+              >
+                <FileText className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span>List</span>
+              </button>
+              <button
+                onClick={() => setViewMode('map')}
+                className={`px-4 sm:px-6 py-2.5 rounded-xl font-bold text-sm sm:text-base transition flex items-center gap-2 ${
+                  viewMode === 'map'
+                    ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md'
+                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+                }`}
+              >
+                <Map className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span>Map</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Filters Panel */}
         {showFilters && (
           <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-4 sm:p-6 mb-4 sm:mb-6 border-2 border-yellow-200">
@@ -764,7 +914,7 @@ const loadReviews = async (restaurant) => {
             
             <div className="mb-5 sm:mb-6">
               <label className="block text-sm font-bold text-gray-700 mb-2">
-                ðŸ¹ Max Distance: <span className="text-orange-600">{filters.maxDistance} miles</span>
+                 Max Distance: <span className="text-orange-600">{filters.maxDistance} miles</span>
               </label>
               <input
                 type="range"
@@ -777,7 +927,7 @@ const loadReviews = async (restaurant) => {
             </div>
 
             <div className="mb-5 sm:mb-6">
-              <label className="block text-sm font-bold text-gray-700 mb-2">ðŸ’° Price Range</label>
+              <label className="block text-sm font-bold text-gray-700 mb-2"><DollarSign className="inline w-4 h-4 text-yellow-600" /> Price Range</label>
               <div className="flex gap-2">
                 {[1, 2, 3, 4].map(level => (
                   <button
@@ -796,7 +946,7 @@ const loadReviews = async (restaurant) => {
             </div>
 
             <div className="mb-5 sm:mb-6">
-              <label className="block text-sm font-bold text-gray-700 mb-2">ðŸ½ï¸ Cuisine Type</label>
+              <label className="block text-sm font-bold text-gray-700 mb-2"> Cuisine Type</label>
               <div className="flex flex-wrap gap-2">
                 {cuisineOptions.map(cuisine => (
                   <button
@@ -815,7 +965,7 @@ const loadReviews = async (restaurant) => {
             </div>
 
             <div className="mb-4">
-              <label className="block text-sm font-bold text-gray-700 mb-2">ðŸ½ï¸ Dining Options</label>
+              <label className="block text-sm font-bold text-gray-700 mb-2"> Dining Options</label>
               <div className="flex flex-wrap gap-2">
                 {diningOptionsData.map(option => (
                   <button
@@ -852,37 +1002,11 @@ const loadReviews = async (restaurant) => {
         {/* Results section */}
 {restaurants.length > 0 && (
   <div>
-    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6 gap-3">
-      <div className="flex items-center gap-2 sm:gap-3">
-        <TrendingUp className="w-5 h-5 sm:w-7 sm:h-7 text-yellow-300" />
-        <h2 className="text-lg sm:text-3xl font-black text-white drop-shadow-lg">
-          Found {allRestaurants.length} Keto Spot{allRestaurants.length !== 1 ? 's' : ''} ðŸ”¥
-        </h2>
-      </div>
-      
-      {/* NEW: View Toggle */}
-      <div className="flex gap-1 bg-white/90 rounded-xl p-1 shadow-lg self-start sm:self-auto">
-        <button
-          onClick={() => setViewMode('list')}
-          className={`px-3 py-1.5 rounded-lg font-semibold text-sm transition ${
-            viewMode === 'list'
-              ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white'
-              : 'text-gray-600 hover:text-gray-800'
-          }`}
-        >
-          ðŸ“‹ List
-        </button>
-        <button
-          onClick={() => setViewMode('map')}
-          className={`px-3 py-1.5 rounded-lg font-semibold text-sm transition ${
-            viewMode === 'map'
-              ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white'
-              : 'text-gray-600 hover:text-gray-800'
-          }`}
-        >
-          ðŸ—ºï¸ Map
-        </button>
-      </div>
+    <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
+      <TrendingUp className="w-5 h-5 sm:w-7 sm:h-7 text-yellow-300" />
+      <h2 className="text-lg sm:text-3xl font-black text-white drop-shadow-lg">
+        Found {allRestaurants.length} Keto Spot{allRestaurants.length !== 1 ? 's' : ''} <Flame className="inline w-6 h-6 ml-1 text-orange-600" />
+      </h2>
     </div>
 
     {/* Map Legend */}
@@ -941,11 +1065,11 @@ const loadReviews = async (restaurant) => {
                       </h3>
                       <div className="flex items-center gap-2">
                         <p className="text-gray-600 text-sm font-semibold">{restaurant.cuisine}</p>
-                        <span className="text-gray-400">•</span>
+                        <span className="text-gray-400">â€¢</span>
                         <p className="text-orange-600 text-sm font-bold">
                           {getPriceSymbol(restaurant.priceLevel)}
                         </p>
-                        <span className="text-gray-400">•</span>
+                        <span className="text-gray-400">â€¢</span>
                         <div className="flex items-center gap-1">
                           <MapPin className="w-3.5 h-3.5 text-orange-500" />
                           <span className="text-sm font-medium text-gray-600">{restaurant.distance} mi</span>
@@ -966,7 +1090,7 @@ const loadReviews = async (restaurant) => {
                     </div>
                     {restaurant.ketoReviews > 0 && (
                       <div className="flex items-center gap-1 text-green-600">
-                        <span className="text-xs">🥩</span>
+                        <span className="text-xs inline-flex items-center gap-1"><Flame className="w-3 h-3" /></span>
                         <span className="font-medium text-xs">{restaurant.ketoReviews} keto reviews</span>
                       </div>
                     )}
@@ -1009,7 +1133,6 @@ const loadReviews = async (restaurant) => {
                     >
                       <Navigation className="w-3.5 h-3.5" /> Directions
                     </button>
-                  </div>                    </button>
                   </div>
                 </div>
               ))}
@@ -1057,7 +1180,7 @@ const loadReviews = async (restaurant) => {
           <div className="bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-3xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto shadow-2xl border-t-2 sm:border-2 border-orange-200">
             <div className="sticky top-0 bg-white px-4 sm:px-6 py-4 border-b border-gray-100 flex justify-between items-center">
               <h3 className="text-xl sm:text-2xl font-black text-gray-800 flex items-center gap-2">
-                <span>âœï¸</span> Add Keto Review
+                <span><Pencil className="inline w-5 h-5" /></span> Add Keto Review
               </h3>
               <button
                 onClick={() => setShowReviewModal(false)}
@@ -1100,7 +1223,7 @@ const loadReviews = async (restaurant) => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">ðŸ¥© Keto-Friendliness Rating</label>
+                  <label className="block text-sm font-bold text-gray-700 mb-2"><Flame className="inline w-4 h-4 mr-1 text-orange-600" /> Keto-Friendliness Rating</label>
                   <div className="flex gap-1 sm:gap-2">
                     {[1, 2, 3, 4, 5].map(rating => (
                       <button
@@ -1115,7 +1238,7 @@ const loadReviews = async (restaurant) => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">ðŸ½ï¸ Keto Menu Items You Tried</label>
+                  <label className="block text-sm font-bold text-gray-700 mb-2"> Keto Menu Items You Tried</label>
                   <input
                     type="text"
                     value={reviewForm.menuItems}
@@ -1197,7 +1320,7 @@ const loadReviews = async (restaurant) => {
                 <div className="bg-gradient-to-r from-orange-50 to-red-50 p-3 rounded-xl border-2 border-orange-200 mt-2 sm:mt-4">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-bold text-gray-700 flex items-center gap-1">
-                      <span>ðŸ¥©</span> KETO SCORE
+                      <Flame className="inline w-5 h-5 mr-1 text-orange-600" /> KETO SCORE
                     </span>
                     <span className="text-sm font-black text-orange-600">
                       {Math.round(selectedRestaurant.ketoScore * 100)}%
@@ -1215,7 +1338,7 @@ const loadReviews = async (restaurant) => {
 
 {!loadingSignals && restaurantSignals?.reasons && (
   <div className="mt-2 mb-2 text-xs text-gray-700 italic bg-white/50 p-2 rounded border border-orange-200">
-    ðŸ’¡ {restaurantSignals.reasons}
+    <Lightbulb className="inline w-4 h-4" /> {restaurantSignals.reasons}
   </div>
 )}
 
@@ -1223,7 +1346,7 @@ const loadReviews = async (restaurant) => {
 {!loadingSignals && foundKetoFoods.length > 0 && (
   <div className="mt-3 mb-2">
     <p className="text-xs font-semibold text-gray-700 mb-1.5">
-      ðŸ½ï¸ Mentioned in reviews:
+       Mentioned in reviews:
     </p>
     <div className="flex flex-wrap gap-1.5">
       {foundKetoFoods.map((item, index) => (
@@ -1241,8 +1364,7 @@ const loadReviews = async (restaurant) => {
 {/* Optional: Show customization options found */}
 {!loadingSignals && foundCustomizations.length > 0 && (
   <div className="mt-2 mb-2">
-    <p className="text-xs font-semibold text-gray-700 mb-1.5">
-      âœï¸ Customization options available:
+    <p className="text-xs font-semibold text-gray-700 mb-1.5"><Pencil className="inline w-5 h-5" />  Customization options available:
     </p>
     <div className="flex flex-wrap gap-1.5">
       {foundCustomizations.map((item, index) => (
@@ -1271,7 +1393,7 @@ const loadReviews = async (restaurant) => {
               <div className="mb-6">
                 <div className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-xl p-4 border-2 border-emerald-300">
                   <div className="flex items-center gap-2 mb-3">
-                    <span className="text-2xl">âœ…</span>
+                    <CheckCircle className="w-6 h-6 text-green-600" />
                     <div>
                       <h4 className="text-lg font-bold text-emerald-800">
                         Verified Menu - {chainMenuData.chainName}
@@ -1302,13 +1424,13 @@ const loadReviews = async (restaurant) => {
                         </div>
                         
                         <div className="flex gap-3 text-xs text-gray-600">
-                          <span>ðŸ”¥ {item.calories} cal</span>
-                          <span>ðŸ½ï¸ {item.protein}g protein</span>
-                          <span>ðŸ¥© {item.fat}g fat</span>
+                          <span> {item.calories} cal</span>
+                          <span> {item.protein}g protein</span>
+                          <span><Flame className="inline w-4 h-4 text-orange-600" /> {item.fat}g fat</span>
                         </div>
                         {item.orderAs && (
                           <p className="text-xs text-emerald-600 mt-1.5 font-medium">
-                            ðŸ“‹ Say: "{item.orderAs}"
+                            <FileText className="inline w-5 h-5" /> Say: "{item.orderAs}"
                           </p>
                         )}
                       </div>
@@ -1317,7 +1439,7 @@ const loadReviews = async (restaurant) => {
                   
                   {chainMenuData.orderTips && chainMenuData.orderTips.length > 0 && (
                     <div className="mt-3 pt-3 border-t border-emerald-200">
-                      <p className="text-xs font-bold text-emerald-700 mb-1.5">ðŸ’¡ Order Tips:</p>
+                      <p className="text-xs font-bold text-emerald-700 mb-1.5"><Lightbulb className="inline w-4 h-4" /> Order Tips:</p>
                       {chainMenuData.orderTips.map((tip, i) => (
                         <p key={i} className="text-xs text-gray-600 mb-1">  {tip}</p>
                       ))}
@@ -1329,7 +1451,7 @@ const loadReviews = async (restaurant) => {
 
             <div className="mb-6">
               <h4 className="text-lg sm:text-xl font-bold text-gray-800 mb-3 flex items-center gap-2">
-                <span>ðŸ´</span> Community Keto Picks
+                <Award className="inline w-5 h-5 mr-2 text-orange-600" /> Community Keto Picks
               </h4>
               
                 {loadingReviews ? (
@@ -1359,7 +1481,7 @@ const loadReviews = async (restaurant) => {
                       <div className="border-t border-gray-200 pt-3 mt-3">
                         <div className="flex items-center gap-2 mb-2">
                           <span className="text-purple-600 text-xs font-bold uppercase tracking-wide">
-                            ðŸ¤– AI-Suggested Keto Options
+                            <Sparkles className="inline w-4 h-4 mr-1 text-purple-600" /> AI-Suggested Keto Options
                           </span>
                         </div>
                         <p className="text-gray-400 text-xs mb-2 italic">
@@ -1432,7 +1554,7 @@ const loadReviews = async (restaurant) => {
                               <span className="text-xs sm:text-sm font-bold text-yellow-700">{review.overall_rating}</span>
                             </div>
                             <div className="flex items-center bg-green-100 px-2 py-1 rounded">
-                              <span className="text-xs sm:text-sm mr-1">ðŸ¥©</span>
+                              <span className="text-xs sm:text-sm mr-1"><Flame className="inline w-4 h-4 text-orange-600" /></span>
                               <span className="text-xs sm:text-sm font-bold text-green-700">{review.keto_rating}</span>
                             </div>
                           </div>
@@ -1444,11 +1566,167 @@ const loadReviews = async (restaurant) => {
                           </p>
                         )}
 
-                        <p className="text-gray-700 text-sm sm:text-base">{review.comment}</p>
+                        <p className="text-gray-700 text-sm sm:text-base mb-3">{review.comment}</p>
+
+                        {/* Edit/Delete buttons - only show if user owns the review */}
+                        {isSignedIn && user && review.user_id === user.id && (
+                          <div className="flex gap-2 pt-3 border-t border-gray-300">
+                            <button
+                              onClick={() => handleEditReview(review)}
+                              className="flex-1 px-3 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg text-sm font-semibold transition active:scale-95"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteReview(review)}
+                              className="flex-1 px-3 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-sm font-semibold transition active:scale-95"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Review Modal */}
+      {showEditReviewModal && editingReview && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center z-50">
+          <div className="bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-3xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto shadow-2xl border-t-2 sm:border-2 border-blue-200">
+            <div className="sticky top-0 bg-white px-4 sm:px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+              <h3 className="text-xl sm:text-2xl font-black text-gray-800 flex items-center gap-2">
+                <span>✔️</span> Edit Keto Review
+              </h3>
+              <button
+                onClick={() => {
+                  setShowEditReviewModal(false);
+                  setEditingReview(null);
+                }}
+                className="text-gray-400 hover:text-gray-600 active:scale-90 transition p-2 -mr-2"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="px-4 sm:px-6 py-4 pb-8">
+              <p className="text-gray-600 mb-4 font-semibold">{selectedRestaurant?.name}</p>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Overall Rating</label>
+                  <div className="flex gap-1 sm:gap-2">
+                    {[1, 2, 3, 4, 5].map(rating => (
+                      <button
+                        key={rating}
+                        onClick={() => setEditingReviewForm({ ...editingReviewForm, rating })}
+                        className="w-11 h-11 sm:w-10 sm:h-10 flex items-center justify-center transition active:scale-90"
+                      >
+                        <Star className={`w-8 h-8 ${rating <= editingReviewForm.rating ? 'text-yellow-400 fill-current' : 'text-gray-300'}`} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2"><Flame className="inline w-4 h-4 mr-1 text-orange-600" /> Keto-Friendliness Rating</label>
+                  <div className="flex gap-1 sm:gap-2">
+                    {[1, 2, 3, 4, 5].map(rating => (
+                      <button
+                        key={rating}
+                        onClick={() => setEditingReviewForm({ ...editingReviewForm, ketoRating: rating })}
+                        className="w-11 h-11 sm:w-10 sm:h-10 flex items-center justify-center transition active:scale-90"
+                      >
+                        <Star className={`w-8 h-8 ${rating <= editingReviewForm.ketoRating ? 'text-orange-500 fill-current' : 'text-gray-300'}`} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2"><UtensilsCrossed className="inline w-4 h-4" /> Keto Menu Items You Tried</label>
+                  <input
+                    type="text"
+                    value={editingReviewForm.menuItems}
+                    onChange={(e) => setEditingReviewForm({ ...editingReviewForm, menuItems: e.target.value })}
+                    className="w-full px-4 py-3 border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none font-medium text-base"
+                    placeholder="e.g., Bunless burger, Caesar salad"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Your Review</label>
+                  <textarea
+                    value={editingReviewForm.comment}
+                    onChange={(e) => setEditingReviewForm({ ...editingReviewForm, comment: e.target.value })}
+                    className="w-full px-4 py-3 border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none h-28 sm:h-32 resize-none font-medium text-base"
+                    placeholder="Share your keto dining experience..."
+                  />
+                </div>
+
+                <button
+                  onClick={submitEditedReview}
+                  className="w-full bg-gradient-to-r from-blue-500 to-cyan-500 text-white py-4 rounded-xl hover:from-blue-600 hover:to-cyan-600 active:scale-[0.98] transition font-bold text-lg flex items-center justify-center gap-2 shadow-lg"
+                >
+                  <Send className="w-5 h-5" />
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && reviewToDelete && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm mx-4 border-2 border-red-200">
+            <div className="p-6 sm:p-8">
+              <div className="flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 mx-auto bg-red-100 rounded-full mb-4">
+                <span className="text-2xl sm:text-3xl">⚠️</span>
+              </div>
+              
+              <h3 className="text-xl sm:text-2xl font-black text-gray-800 text-center mb-2">
+                Delete This Review?
+              </h3>
+              
+              <p className="text-gray-600 text-center mb-2">
+                You're about to delete your review for <strong>{selectedRestaurant?.name}</strong>
+              </p>
+              
+              <p className="text-gray-500 text-center text-sm mb-6">
+                This action cannot be undone.
+              </p>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowDeleteConfirm(false);
+                    setReviewToDelete(null);
+                  }}
+                  className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-semibold transition active:scale-95"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDeleteReview}
+                  disabled={deletingReviewId !== null}
+                  className="flex-1 px-4 py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl font-semibold transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {deletingReviewId !== null ? (
+                    <>
+                      <Loader className="w-5 h-5 animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    'Delete Review'
+                  )}
+                </button>
               </div>
             </div>
           </div>
