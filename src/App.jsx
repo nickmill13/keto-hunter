@@ -767,20 +767,75 @@ const loadReviews = async (restaurant) => {
           </p>
         </div>
 
+        {/* Map/List View Toggle - At top, always visible after first search */}
+        {(restaurants.length > 0 || allRestaurants.length > 0) && (
+          <div className="mb-4">
+            <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl p-2 border-2 border-orange-200 inline-flex">
+              <button
+                onClick={() => setViewMode('list')}
+                className={`px-4 sm:px-6 py-2.5 rounded-xl font-bold text-sm sm:text-base transition flex items-center gap-2 ${
+                  viewMode === 'list'
+                    ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md'
+                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+                }`}
+              >
+                <FileText className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span>List</span>
+              </button>
+              <button
+                onClick={() => setViewMode('map')}
+                className={`px-4 sm:px-6 py-2.5 rounded-xl font-bold text-sm sm:text-base transition flex items-center gap-2 ${
+                  viewMode === 'map'
+                    ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md'
+                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+                }`}
+              >
+                <Map className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span>Map</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Search Card */}
         <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-3 sm:p-6 mb-4 sm:mb-6 border-2 border-orange-300">
           <div className="space-y-3">
-            {/* Location input */}
-            <div className="relative">
-              <MapPin className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 text-orange-600 w-5 h-5" />
-              <input
-                type="text"
-                placeholder="City, zip, or address"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                onKeyPress={handleKeyPress}
-                className="w-full pl-10 sm:pl-12 pr-4 py-3 border-2 border-orange-200 rounded-xl focus:border-orange-500 focus:ring-2 focus:ring-orange-200 focus:outline-none text-gray-800 font-medium text-base"
-              />
+            {/* Location input with buttons on the right */}
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <MapPin className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 text-orange-600 w-5 h-5" />
+                <input
+                  type="text"
+                  placeholder="City, zip, or address"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  className="w-full pl-10 sm:pl-12 pr-4 py-3 border-2 border-orange-200 rounded-xl focus:border-orange-500 focus:ring-2 focus:ring-orange-200 focus:outline-none text-gray-800 font-medium text-base"
+                />
+              </div>
+              
+              {/* Right side buttons */}
+              <button
+                onClick={getCurrentLocation}
+                disabled={loading}
+                className="p-3 bg-orange-100 hover:bg-orange-200 text-orange-800 rounded-xl active:scale-95 transition border-2 border-orange-200 disabled:opacity-50 flex items-center justify-center"
+                title="Use My Location"
+              >
+                <Navigation className="w-5 h-5" />
+              </button>
+
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className="p-3 bg-yellow-100 hover:bg-yellow-200 text-orange-800 rounded-xl active:scale-95 transition border-2 border-yellow-200 relative flex items-center justify-center"
+                title="Filters"
+              >
+                <Filter className="w-5 h-5" />
+                {(filters.cuisineTypes.length > 0 || filters.diningOptions.length > 0) && (
+                  <span className="bg-orange-500 text-white text-xs px-1.5 py-0.5 rounded-full absolute -top-1.5 -right-1.5 min-w-[18px] text-center font-semibold">
+                    {filters.cuisineTypes.length + filters.diningOptions.length}
+                  </span>
+                )}
+              </button>
             </div>
 
             {/* Restaurant search - always visible on desktop */}
@@ -820,51 +875,21 @@ const loadReviews = async (restaurant) => {
               )}
             </div>
 
-            {/* Main action area with side buttons */}
-            <div className="flex gap-2 items-stretch">
-              {/* Left: Location & Filter buttons (stacked on mobile, side-by-side on desktop) */}
-              <div className="flex flex-col sm:flex-row gap-2">
-                {/* Use My Location - compact button */}
-                <button
-                  onClick={getCurrentLocation}
-                  disabled={loading}
-                  className="p-3 bg-orange-100 hover:bg-orange-200 text-orange-800 rounded-xl active:scale-95 transition border-2 border-orange-200 disabled:opacity-50 flex items-center justify-center"
-                  title="Use My Location"
-                >
-                  <Navigation className="w-5 h-5" />
-                </button>
-
-                {/* Filters - compact button */}
-                <button
-                  onClick={() => setShowFilters(!showFilters)}
-                  className="p-3 bg-yellow-100 hover:bg-yellow-200 text-orange-800 rounded-xl active:scale-95 transition border-2 border-yellow-200 relative flex items-center justify-center"
-                  title="Filters"
-                >
-                  <Filter className="w-5 h-5" />
-                  {(filters.cuisineTypes.length > 0 || filters.diningOptions.length > 0) && (
-                    <span className="bg-orange-500 text-white text-xs px-1.5 py-0.5 rounded-full absolute -top-1.5 -right-1.5 min-w-[18px] text-center font-semibold">
-                      {filters.cuisineTypes.length + filters.diningOptions.length}
-                    </span>
-                  )}
-                </button>
-              </div>
-
-              {/* Center: Main Search button - takes remaining space */}
-              <button
-                onClick={handleSearch}
-                disabled={loading}
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl hover:from-orange-600 hover:to-red-600 active:scale-95 transition flex items-center justify-center gap-2 disabled:opacity-50 font-bold text-base sm:text-lg shadow-lg"
-              >
-                {loading ? (
-                  <Loader className="w-5 h-5 animate-spin" />
-                ) : (
-                  <>
-                    <Search className="w-5 h-5" />
-                    <span>Start Hunt <Target className="inline w-5 h-5 ml-1 hidden sm:inline" /></span>
-                  </>
-                )}
-              </button>
-            </div>
+            {/* Start Hunt button - smaller, full width */}
+            <button
+              onClick={handleSearch}
+              disabled={loading}
+              className="w-full px-6 py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl hover:from-orange-600 hover:to-red-600 active:scale-95 transition flex items-center justify-center gap-2 disabled:opacity-50 font-bold text-base shadow-lg"
+            >
+              {loading ? (
+                <Loader className="w-5 h-5 animate-spin" />
+              ) : (
+                <>
+                  <Search className="w-5 h-5" />
+                  <span>Start Hunt</span>
+                </>
+              )}
+            </button>
 
             {error && (
               <div className="bg-red-50 border-2 border-red-300 text-red-700 px-4 py-3 rounded-xl font-medium text-sm sm:text-base">
@@ -873,36 +898,6 @@ const loadReviews = async (restaurant) => {
             )}
           </div>
         </div>
-
-        {/* Map/List View Toggle - Always visible when there are results OR after first search */}
-        {(restaurants.length > 0 || allRestaurants.length > 0) && (
-          <div className="mb-4 sm:mb-6">
-            <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl p-2 border-2 border-orange-200 inline-flex">
-              <button
-                onClick={() => setViewMode('list')}
-                className={`px-4 sm:px-6 py-2.5 rounded-xl font-bold text-sm sm:text-base transition flex items-center gap-2 ${
-                  viewMode === 'list'
-                    ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md'
-                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
-                }`}
-              >
-                <FileText className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span>List</span>
-              </button>
-              <button
-                onClick={() => setViewMode('map')}
-                className={`px-4 sm:px-6 py-2.5 rounded-xl font-bold text-sm sm:text-base transition flex items-center gap-2 ${
-                  viewMode === 'map'
-                    ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md'
-                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
-                }`}
-              >
-                <Map className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span>Map</span>
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* Filters Panel */}
         {showFilters && (
