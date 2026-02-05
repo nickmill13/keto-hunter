@@ -1065,11 +1065,11 @@ const loadReviews = async (restaurant) => {
                       </h3>
                       <div className="flex items-center gap-2">
                         <p className="text-gray-600 text-sm font-semibold">{restaurant.cuisine}</p>
-                        <span className="text-gray-400">â€¢</span>
+                        <span className="text-gray-400">•</span>
                         <p className="text-orange-600 text-sm font-bold">
                           {getPriceSymbol(restaurant.priceLevel)}
                         </p>
-                        <span className="text-gray-400">â€¢</span>
+                        <span className="text-gray-400">•</span>
                         <div className="flex items-center gap-1">
                           <MapPin className="w-3.5 h-3.5 text-orange-500" />
                           <span className="text-sm font-medium text-gray-600">{restaurant.distance} mi</span>
@@ -1329,7 +1329,7 @@ const loadReviews = async (restaurant) => {
  <div className="text-xs font-semibold text-gray-600 mb-2">
   Keto Confidence:{' '}
   {loadingSignals
-    ? 'Loadingâ€¦'
+    ? 'Loading...'
     : confidenceLabel(restaurantSignals?.keto_confidence)}
   {!loadingSignals && restaurantSignals?.keto_confidence != null
     ? ` (${Number(restaurantSignals.keto_confidence).toFixed(2)})`
