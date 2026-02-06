@@ -1596,7 +1596,7 @@ const loadReviews = async (restaurant) => {
           <div className="bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-3xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto shadow-2xl border-t-2 sm:border-2 border-blue-200">
             <div className="sticky top-0 bg-white px-4 sm:px-6 py-4 border-b border-gray-100 flex justify-between items-center">
               <h3 className="text-xl sm:text-2xl font-black text-gray-800 flex items-center gap-2">
-                <span>✔️</span> Edit Keto Review
+                <Pencil className="w-5 h-5 text-blue-600" /> Edit Keto Review
               </h3>
               <button
                 onClick={() => {
@@ -1683,7 +1683,7 @@ const loadReviews = async (restaurant) => {
           <div className="bg-white rounded-2xl shadow-2xl max-w-sm mx-4 border-2 border-red-200">
             <div className="p-6 sm:p-8">
               <div className="flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 mx-auto bg-red-100 rounded-full mb-4">
-                <span className="text-2xl sm:text-3xl">⚠️</span>
+                <AlertTriangle className="w-6 h-6 sm:w-7 sm:h-7 text-red-600" />
               </div>
               
               <h3 className="text-xl sm:text-2xl font-black text-gray-800 text-center mb-2">
