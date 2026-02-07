@@ -122,11 +122,22 @@ const BASE_URL = (import.meta.env.VITE_API_URL || 'https://keto-hunter-backend-p
       }
 
       const data = await response.json();
+      
+      console.log(`[FRONTEND] Backend returned ${data.restaurants?.length || 0} restaurants`);
+      console.log(`[FRONTEND] Search radius: ${filters.maxDistance} miles`);
 
       const filtered = applyFilters(data.restaurants || []);
+      console.log(`[FRONTEND] After filtering: ${filtered.length} restaurants`);
+      
+      // Log distance range
+      if (filtered.length > 0) {
+        const distances = filtered.map(r => parseFloat(r.distance)).sort((a, b) => a - b);
+        console.log(`[FRONTEND] Distance range: ${distances[0].toFixed(1)} - ${distances[distances.length - 1].toFixed(1)} miles`);
+      }
+      
       setAllRestaurants(filtered); // Store all results for pagination
-      setRestaurants(filtered.slice(0, 10)); // Show first 10
-      setDisplayCount(10); // Reset display count
+      setRestaurants(filtered.slice(0, 20)); // Show first 20 (was 10)
+      setDisplayCount(20); // Reset display count
 
       if (filtered.length === 0) {
         setError('No restaurants found matching your criteria. Try adjusting your filters.');
