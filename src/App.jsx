@@ -136,8 +136,8 @@ const BASE_URL = (import.meta.env.VITE_API_URL || 'https://keto-hunter-backend-p
       }
       
       setAllRestaurants(filtered); // Store all results for pagination
-      setRestaurants(filtered.slice(0, 20)); // Show first 20 (was 10)
-      setDisplayCount(20); // Reset display count
+      setRestaurants(filtered.slice(0, 30)); // Show first 30 (was 20)
+      setDisplayCount(30); // Reset display count
 
       if (filtered.length === 0) {
         setError('No restaurants found matching your criteria. Try adjusting your filters.');
