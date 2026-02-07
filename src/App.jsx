@@ -718,9 +718,9 @@ const loadReviews = async (restaurant) => {
             </div>
             <div style="display: flex; gap: 8px; margin-bottom: 8px; font-size: 13px; color: #6b7280; flex-wrap: wrap;">
               <span style="font-weight: 600;">${restaurant.cuisine}</span>
-              <span>â€¢</span>
+              <span>•</span>
               <span style="color: #f97316; font-weight: bold;">${'$'.repeat(restaurant.priceLevel)}</span>
-              <span>â€¢</span>
+              <span>•</span>
               <span>${restaurant.distance} mi</span>
             </div>
             <div style="display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap;">
@@ -1180,11 +1180,11 @@ const loadReviews = async (restaurant) => {
                       </h3>
                       <div className="flex items-center gap-2">
                         <p className="text-gray-600 text-sm font-semibold">{restaurant.cuisine}</p>
-                        <span className="text-gray-400">â€¢</span>
+                        <span className="text-gray-400">•</span>
                         <p className="text-orange-600 text-sm font-bold">
                           {getPriceSymbol(restaurant.priceLevel)}
                         </p>
-                        <span className="text-gray-400">â€¢</span>
+                        <span className="text-gray-400">•</span>
                         <div className="flex items-center gap-1">
                           <MapPin className="w-3.5 h-3.5 text-orange-500" />
                           <span className="text-sm font-medium text-gray-600">{restaurant.distance} mi</span>
