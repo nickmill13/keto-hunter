@@ -775,7 +775,50 @@ const loadReviews = async (restaurant) => {
 };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-400 via-red-400 to-pink-500">
+    <div className="min-h-screen bg-gradient-to-br from-orange-400 via-red-400 to-pink-500 pb-safe">
+      {/* iOS Safe Area Support - prevents content from hiding under notch/home indicator */}
+      <style>{`
+        :root {
+          --sat: env(safe-area-inset-top);
+          --sab: env(safe-area-inset-bottom);
+          --sal: env(safe-area-inset-left);
+          --sar: env(safe-area-inset-right);
+        }
+        
+        /* iOS-specific fixes */
+        @supports (-webkit-touch-callout: none) {
+          /* Prevent iOS zoom on input focus */
+          input, textarea, select {
+            font-size: 16px !important;
+          }
+          
+          /* Fix iOS Safari bottom bar jumping */
+          .min-h-screen {
+            min-height: -webkit-fill-available;
+          }
+          
+          /* Safe area padding for notch devices */
+          .safe-area-inset {
+            padding-top: max(1rem, env(safe-area-inset-top));
+            padding-bottom: max(1rem, env(safe-area-inset-bottom));
+          }
+          
+          /* Bottom padding for home indicator */
+          .pb-safe {
+            padding-bottom: max(1rem, calc(env(safe-area-inset-bottom) + 0.5rem));
+          }
+        }
+        
+        /* Ensure minimum touch target size (44x44px for iOS) */
+        button, a, input[type="checkbox"], input[type="radio"] {
+          min-height: 44px;
+        }
+        
+        /* Prevent text size adjustment on iOS */
+        html {
+          -webkit-text-size-adjust: 100%;
+        }
+      `}</style>
       {/* Decorative emojis - hidden on mobile for cleaner look */}
       <div className="hidden md:block absolute inset-0 overflow-hidden pointer-events-none opacity-10">
         <div className="absolute top-20 left-10 text-8xl flex items-center justify-center"><Flame className="w-16 h-16 text-orange-600" /></div>
