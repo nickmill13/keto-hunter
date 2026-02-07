@@ -87,8 +87,10 @@ const BASE_URL = (import.meta.env.VITE_API_URL || 'https://keto-hunter-backend-p
   const SEARCH_URL = `${BASE_URL}/api/search-keto-restaurants`;
 
   const cuisineOptions = [
-    'American', 'Mediterranean', 'Mexican', 'Italian', 
-    'Asian', 'Steakhouse', 'Seafood', 'BBQ', 'Indian', 'Thai'
+    'American', 'Mediterranean', 'Greek', 'Mexican', 'Italian', 
+    'Chinese', 'Japanese', 'Thai', 'Indian', 'Vietnamese', 'Korean',
+    'Steakhouse', 'Seafood', 'BBQ', 'Brazilian', 'Middle Eastern',
+    'Bar & Grill', 'Fast Food', 'Burgers', 'Sandwiches'
   ];
 
   const diningOptionsData = [
@@ -610,6 +612,7 @@ const loadReviews = async (restaurant) => {
     const mapRef = React.useRef(null);
     const mapInstanceRef = React.useRef(null);
     const markersRef = React.useRef([]);
+    const infoWindowRef = React.useRef(null);
 
     React.useEffect(() => {
       if (!mapRef.current || !center || !window.google) return;
@@ -642,6 +645,9 @@ const loadReviews = async (restaurant) => {
             strokeWeight: 2
           }
         });
+
+        // Initialize info window (reuse single instance)
+        infoWindowRef.current = new window.google.maps.InfoWindow();
       }
 
       // Clear old markers
@@ -679,15 +685,64 @@ const loadReviews = async (restaurant) => {
           }
         });
 
-        // Click handler
+        // Create info window content
+        const infoContent = `
+          <div style="padding: 12px; max-width: 280px; font-family: system-ui, -apple-system, sans-serif;">
+            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px; gap: 8px;">
+              <h3 style="margin: 0; font-size: 16px; font-weight: bold; color: #1f2937; line-height: 1.3;">${restaurant.name}</h3>
+              <div style="background: linear-gradient(135deg, #f97316, #ef4444); color: white; padding: 4px 8px; border-radius: 6px; font-weight: bold; font-size: 12px; white-space: nowrap; flex-shrink: 0;">
+                ${Math.round(restaurant.ketoScore * 100)}%
+              </div>
+            </div>
+            <div style="display: flex; gap: 8px; margin-bottom: 8px; font-size: 13px; color: #6b7280; flex-wrap: wrap;">
+              <span style="font-weight: 600;">${restaurant.cuisine}</span>
+              <span>•</span>
+              <span style="color: #f97316; font-weight: bold;">${'$'.repeat(restaurant.priceLevel)}</span>
+              <span>•</span>
+              <span>${restaurant.distance} mi</span>
+            </div>
+            <div style="display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap;">
+              <div style="display: flex; align-items: center; background: #fef3c7; padding: 3px 8px; border-radius: 6px; font-size: 12px;">
+                <span style="margin-right: 4px;">⭐</span>
+                <span style="font-weight: 600; color: #92400e;">${restaurant.rating}</span>
+              </div>
+              ${restaurant.ketoReviews > 0 ? `
+                <div style="display: flex; align-items: center; background: #d1fae5; padding: 3px 8px; border-radius: 6px; font-size: 12px;">
+                  <span style="margin-right: 4px;">🔥</span>
+                  <span style="font-weight: 600; color: #065f46;">${restaurant.ketoReviews} reviews</span>
+                </div>
+              ` : ''}
+            </div>
+            <button 
+              onclick="window.viewRestaurantDetails('${restaurant.id}')"
+              style="width: 100%; padding: 10px 16px; background: linear-gradient(135deg, #f97316, #ef4444); color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer; transition: transform 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"
+              onmouseover="this.style.transform='scale(1.02)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)'"
+              onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'"
+            >
+              View Details
+            </button>
+          </div>
+        `;
+
+        // Click handler - show info window
         marker.addListener('click', () => {
-          onRestaurantClick(restaurant);
+          infoWindowRef.current.setContent(infoContent);
+          infoWindowRef.current.open(mapInstanceRef.current, marker);
         });
 
         markersRef.current.push(marker);
       });
 
-    }, [restaurants, center]);
+      // Global function to handle "View Details" button click from info window
+      window.viewRestaurantDetails = (restaurantId) => {
+        const restaurant = restaurants.find(r => r.id === restaurantId);
+        if (restaurant) {
+          infoWindowRef.current.close();
+          onRestaurantClick(restaurant);
+        }
+      };
+
+    }, [restaurants, center, onRestaurantClick]);
 
     return (
       <div 
