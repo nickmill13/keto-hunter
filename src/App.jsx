@@ -21,6 +21,7 @@ export default function App() {
   const { getToken } = useAuth();
   
   const [location, setLocation] = useState('');
+  const [currentCoordinates, setCurrentCoordinates] = useState(null); // Store coords when using "Current Location"
   const [restaurantQuery, setRestaurantQuery] = useState('');
   const [restaurants, setRestaurants] = useState([]);
   const [allRestaurants, setAllRestaurants] = useState([]);
@@ -179,11 +180,14 @@ const BASE_URL = (import.meta.env.VITE_API_URL || 'https://keto-hunter-backend-p
       
       navigator.geolocation.getCurrentPosition(
         (position) => {
+          const coords = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude
+          };
+          
           setLocation('Current Location');
-          searchByCoordinates(
-            position.coords.latitude,
-            position.coords.longitude
-          );
+          setCurrentCoordinates(coords); // Save coordinates for future searches
+          searchByCoordinates(coords.latitude, coords.longitude);
         },
         (error) => {
           console.error('Geolocation error:', error);
@@ -199,6 +203,12 @@ const BASE_URL = (import.meta.env.VITE_API_URL || 'https://keto-hunter-backend-p
   const handleSearch = async () => {
     if (!location.trim()) {
       setError('Please enter a location');
+      return;
+    }
+    
+    // If location is "Current Location" and we have stored coordinates, use them directly
+    if (location === 'Current Location' && currentCoordinates) {
+      await searchByCoordinates(currentCoordinates.latitude, currentCoordinates.longitude);
       return;
     }
     
@@ -223,6 +233,7 @@ const BASE_URL = (import.meta.env.VITE_API_URL || 'https://keto-hunter-backend-p
       }
       
       setLocation(geocodeData.formattedAddress);
+      setCurrentCoordinates(null); // Clear current location coords when using typed address
       await searchByCoordinates(geocodeData.latitude, geocodeData.longitude);
     } catch (err) {
       console.error('Geocoding error:', err);
@@ -707,19 +718,19 @@ const loadReviews = async (restaurant) => {
             </div>
             <div style="display: flex; gap: 8px; margin-bottom: 8px; font-size: 13px; color: #6b7280; flex-wrap: wrap;">
               <span style="font-weight: 600;">${restaurant.cuisine}</span>
-              <span>•</span>
+              <span>â€¢</span>
               <span style="color: #f97316; font-weight: bold;">${'$'.repeat(restaurant.priceLevel)}</span>
-              <span>•</span>
+              <span>â€¢</span>
               <span>${restaurant.distance} mi</span>
             </div>
             <div style="display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap;">
               <div style="display: flex; align-items: center; background: #fef3c7; padding: 3px 8px; border-radius: 6px; font-size: 12px;">
-                <span style="margin-right: 4px;">⭐</span>
+                <span style="margin-right: 4px;">â­</span>
                 <span style="font-weight: 600; color: #92400e;">${restaurant.rating}</span>
               </div>
               ${restaurant.ketoReviews > 0 ? `
                 <div style="display: flex; align-items: center; background: #d1fae5; padding: 3px 8px; border-radius: 6px; font-size: 12px;">
-                  <span style="margin-right: 4px;">🔥</span>
+                  <span style="margin-right: 4px;">ðŸ”¥</span>
                   <span style="font-weight: 600; color: #065f46;">${restaurant.ketoReviews} reviews</span>
                 </div>
               ` : ''}
@@ -1126,11 +1137,11 @@ const loadReviews = async (restaurant) => {
                       </h3>
                       <div className="flex items-center gap-2">
                         <p className="text-gray-600 text-sm font-semibold">{restaurant.cuisine}</p>
-                        <span className="text-gray-400">•</span>
+                        <span className="text-gray-400">â€¢</span>
                         <p className="text-orange-600 text-sm font-bold">
                           {getPriceSymbol(restaurant.priceLevel)}
                         </p>
-                        <span className="text-gray-400">•</span>
+                        <span className="text-gray-400">â€¢</span>
                         <div className="flex items-center gap-1">
                           <MapPin className="w-3.5 h-3.5 text-orange-500" />
                           <span className="text-sm font-medium text-gray-600">{restaurant.distance} mi</span>
