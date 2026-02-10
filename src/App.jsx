@@ -46,6 +46,8 @@ export default function App() {
   const [foundCookingMethods, setFoundCookingMethods] = useState([]);
   const [chainMenuData, setChainMenuData] = useState(null);
   const [loadingChainMenu, setLoadingChainMenu] = useState(false);
+  const [localMenuData, setLocalMenuData] = useState(null);
+  const [loadingLocalMenu, setLoadingLocalMenu] = useState(false);
   const [showMobileRestaurantSearch, setShowMobileRestaurantSearch] = useState(false);
   const [showEditReviewModal, setShowEditReviewModal] = useState(false);
   const [editingReview, setEditingReview] = useState(null);
@@ -58,6 +60,18 @@ export default function App() {
   const [reviewToDelete, setReviewToDelete] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletingReviewId, setDeletingReviewId] = useState(null);
+  const [googleMapsLoaded, setGoogleMapsLoaded] = useState(!!window.google?.maps);
+
+  // Dynamically load Google Maps JS API
+  React.useEffect(() => {
+    if (window.google?.maps || !GOOGLE_MAPS_KEY) return;
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_KEY}`;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => setGoogleMapsLoaded(true);
+    document.head.appendChild(script);
+  }, []);
 
   const confidenceLabel = (conf) => {
   if (conf == null) return 'Unknown';
@@ -69,10 +83,10 @@ export default function App() {
 
 
   const [filters, setFilters] = useState({
-    maxDistance: 10,
+    maxDistance: 2,
     priceRange: [1, 2, 3, 4],
     cuisineTypes: [],
-    diningOptions: []
+    minKetoScore: 0
   });
 
   const [reviewForm, setReviewForm] = useState({
@@ -84,6 +98,7 @@ export default function App() {
 
 
 const BASE_URL = (import.meta.env.VITE_API_URL || 'https://keto-hunter-backend-production.up.railway.app').replace(/\/$/, '');
+const GOOGLE_MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY || '';
 
   const SEARCH_URL = `${BASE_URL}/api/search-keto-restaurants`;
 
@@ -94,8 +109,11 @@ const BASE_URL = (import.meta.env.VITE_API_URL || 'https://keto-hunter-backend-p
     'Bar & Grill', 'Fast Food', 'Burgers', 'Sandwiches'
   ];
 
-  const diningOptionsData = [
-    'Dine-in', 'Takeout', 'Delivery', 'Drive-through', 'Outdoor Seating'
+  const ketoScoreOptions = [
+    { label: 'Any', value: 0 },
+    { label: '40%+', value: 0.4 },
+    { label: '60%+', value: 0.6 },
+    { label: '80%+', value: 0.8 }
   ];
 
   const searchByCoordinates = async (lat, lng) => {
@@ -163,11 +181,8 @@ const BASE_URL = (import.meta.env.VITE_API_URL || 'https://keto-hunter-backend-p
       if (filters.cuisineTypes.length > 0 && !filters.cuisineTypes.includes(restaurant.cuisine)) {
         return false;
       }
-      if (filters.diningOptions.length > 0) {
-        const hasOption = filters.diningOptions.some(option => 
-          restaurant.diningOptions?.includes(option)
-        );
-        if (!hasOption) return false;
+      if (filters.minKetoScore > 0 && restaurant.ketoScore < filters.minKetoScore) {
+        return false;
       }
       return true;
     });
@@ -281,6 +296,10 @@ const loadReviews = async (restaurant) => {
   setFoundCustomizations([]);
   setFoundCookingMethods([]);
   setChainMenuData(null);
+  setLocalMenuData(null);
+
+  // Track keto foods found in reviews so step B can pass them to local menu analysis
+  let analysisKetoFoods = [];
 
   try {
     // --- A) Load signals (or create them once, then reload) ---
@@ -301,12 +320,14 @@ const loadReviews = async (restaurant) => {
 
     if (analyzeRes.ok) {
       const analysisData = await analyzeRes.json();
-      
+
+      analysisKetoFoods = analysisData.foundKetoFoods || [];
+
       // Store the found items
-      setFoundKetoFoods(analysisData.foundKetoFoods || []);
+      setFoundKetoFoods(analysisKetoFoods);
       setFoundCustomizations(analysisData.foundCustomizations || []);
       setFoundCookingMethods(analysisData.foundCookingMethods || []);
-      
+
       // Refresh signals
       signalsPayload = await getSignals();
     }
@@ -319,9 +340,10 @@ const loadReviews = async (restaurant) => {
     setLoadingSignals(false);
   }
 
-  // --- B) Check for verified chain menu data ---
+  // --- B) Check for verified chain menu data, or fetch AI analysis for locals ---
   try {
     setLoadingChainMenu(true);
+    setLoadingLocalMenu(true);
     const chainResponse = await fetch(
       `${BASE_URL}/api/chain-menu/${restaurant.id}?restaurantName=${encodeURIComponent(restaurant.name)}`
     );
@@ -329,11 +351,37 @@ const loadReviews = async (restaurant) => {
       const chainData = await chainResponse.json();
       if (chainData.isChain && chainData.items.length > 0) {
         setChainMenuData(chainData);
+        setLoadingLocalMenu(false);
+      } else {
+        // Not a chain — fetch AI-estimated menu for this local restaurant
+        setLoadingChainMenu(false);
+        try {
+          const localResponse = await fetch(`${BASE_URL}/api/local-menu-analysis`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              restaurantName: restaurant.name,
+              cuisine: restaurant.cuisine,
+              reviewSnippets: analysisKetoFoods.length > 0 ? analysisKetoFoods : undefined
+            })
+          });
+          if (localResponse.ok) {
+            const localData = await localResponse.json();
+            if (localData.isLocal && localData.items && localData.items.length > 0) {
+              setLocalMenuData(localData);
+            }
+          }
+        } catch (localErr) {
+          console.error('Error fetching local menu analysis:', localErr);
+        } finally {
+          setLoadingLocalMenu(false);
+        }
       }
     }
   } catch (err) {
   } finally {
     setLoadingChainMenu(false);
+    setLoadingLocalMenu(false);
   }
 
   // --- C) Load community reviews ---
@@ -630,14 +678,14 @@ const loadReviews = async (restaurant) => {
   ];
 
   // Map component
-  const MapView = ({ restaurants, center, onRestaurantClick }) => {
+  const MapView = ({ restaurants, center, onRestaurantClick, mapsReady }) => {
     const mapRef = React.useRef(null);
     const mapInstanceRef = React.useRef(null);
     const markersRef = React.useRef([]);
     const infoWindowRef = React.useRef(null);
 
     React.useEffect(() => {
-      if (!mapRef.current || !center || !window.google) return;
+      if (!mapRef.current || !center || !window.google?.maps) return;
 
       // Initialize map
       if (!mapInstanceRef.current) {
@@ -723,18 +771,13 @@ const loadReviews = async (restaurant) => {
               <span>•</span>
               <span>${restaurant.distance} mi</span>
             </div>
+            ${restaurant.ketoReviews > 0 ? `
             <div style="display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap;">
-              <div style="display: flex; align-items: center; background: #fef3c7; padding: 3px 8px; border-radius: 6px; font-size: 12px;">
-                <span style="margin-right: 4px;">â­</span>
-                <span style="font-weight: 600; color: #92400e;">${restaurant.rating}</span>
-              </div>
-              ${restaurant.ketoReviews > 0 ? `
                 <div style="display: flex; align-items: center; background: #d1fae5; padding: 3px 8px; border-radius: 6px; font-size: 12px;">
-                  <span style="margin-right: 4px;">ðŸ”¥</span>
-                  <span style="font-weight: 600; color: #065f46;">${restaurant.ketoReviews} reviews</span>
+                  <span style="font-weight: 600; color: #065f46;">${restaurant.ketoReviews} keto reviews</span>
                 </div>
-              ` : ''}
             </div>
+            ` : ''}
             <button 
               onclick="window.viewRestaurantDetails('${restaurant.id}')"
               style="width: 100%; padding: 10px 16px; background: linear-gradient(135deg, #f97316, #ef4444); color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer; transition: transform 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"
@@ -764,11 +807,23 @@ const loadReviews = async (restaurant) => {
         }
       };
 
-    }, [restaurants, center, onRestaurantClick]);
+    }, [restaurants, center, onRestaurantClick, mapsReady]);
+
+    if (!mapsReady) {
+      return (
+        <div className="w-full h-[350px] sm:h-[600px] rounded-2xl shadow-xl border-2 border-orange-200 bg-gray-100 flex items-center justify-center">
+          <div className="text-center text-gray-500">
+            <Map className="w-12 h-12 mx-auto mb-2 text-gray-400" />
+            <p className="font-semibold">Map loading...</p>
+            <p className="text-sm">If this persists, Google Maps may not be configured</p>
+          </div>
+        </div>
+      );
+    }
 
     return (
-      <div 
-        ref={mapRef} 
+      <div
+        ref={mapRef}
         className="w-full h-[350px] sm:h-[600px] rounded-2xl shadow-xl border-2 border-orange-200"
       />
     );
@@ -950,9 +1005,9 @@ const loadReviews = async (restaurant) => {
                 title="Filters"
               >
                 <Filter className="w-5 h-5" />
-                {(filters.cuisineTypes.length > 0 || filters.diningOptions.length > 0) && (
+                {(filters.cuisineTypes.length > 0 || filters.minKetoScore > 0) && (
                   <span className="bg-orange-500 text-white text-xs px-1.5 py-0.5 rounded-full absolute -top-1.5 -right-1.5 min-w-[18px] text-center font-semibold">
-                    {filters.cuisineTypes.length + filters.diningOptions.length}
+                    {filters.cuisineTypes.length + (filters.minKetoScore > 0 ? 1 : 0)}
                   </span>
                 )}
               </button>
@@ -1080,19 +1135,19 @@ const loadReviews = async (restaurant) => {
             </div>
 
             <div className="mb-4">
-              <label className="block text-sm font-bold text-gray-700 mb-2"> Dining Options</label>
-              <div className="flex flex-wrap gap-2">
-                {diningOptionsData.map(option => (
+              <label className="block text-sm font-bold text-gray-700 mb-2"><Flame className="inline w-4 h-4 text-orange-600" /> Min Keto Score</label>
+              <div className="flex gap-2">
+                {ketoScoreOptions.map(opt => (
                   <button
-                    key={option}
-                    onClick={() => toggleFilter('diningOptions', option)}
-                    className={`px-3 sm:px-4 py-2 rounded-full text-sm font-semibold transition active:scale-95 ${
-                      filters.diningOptions.includes(option)
-                        ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    key={opt.value}
+                    onClick={() => setFilters({ ...filters, minKetoScore: opt.value })}
+                    className={`flex-1 sm:flex-none px-4 sm:px-5 py-3 rounded-xl font-bold transition active:scale-95 ${
+                      filters.minKetoScore === opt.value
+                        ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}
                   >
-                    {option}
+                    {opt.label}
                   </button>
                 ))}
               </div>
@@ -1101,10 +1156,10 @@ const loadReviews = async (restaurant) => {
             <button
               onClick={() => {
                 setFilters({
-                  maxDistance: 10,
+                  maxDistance: 2,
                   priceRange: [1, 2, 3, 4],
                   cuisineTypes: [],
-                  diningOptions: []
+                  minKetoScore: 0
                 });
               }}
               className="text-sm text-orange-600 hover:text-orange-700 font-bold underline"
@@ -1151,9 +1206,10 @@ const loadReviews = async (restaurant) => {
 
     {/* Conditional Rendering: Map or List */}
     {viewMode === 'map' ? (
-      <MapView 
-        restaurants={restaurants} 
+      <MapView
+        restaurants={restaurants}
         center={mapCenter}
+        mapsReady={googleMapsLoaded}
         onRestaurantClick={(restaurant) => {
           setSelectedRestaurant(restaurant);
           loadReviews(restaurant);
@@ -1400,6 +1456,8 @@ const loadReviews = async (restaurant) => {
                   setReviews([]);
                   setKetoItems([]);
                   setAiSuggestions([]);
+                  setLocalMenuData(null);
+                  setChainMenuData(null);
                 }}
                 className="text-gray-400 hover:text-gray-600 active:scale-90 transition p-2 -mr-2"
               >
@@ -1431,6 +1489,16 @@ const loadReviews = async (restaurant) => {
                 <p className="text-gray-600 text-sm sm:text-base hidden sm:block"><strong>Distance:</strong> {selectedRestaurant.distance} miles</p>
                 <p className="text-gray-600 text-sm sm:text-base hidden sm:block"><strong>Cuisine:</strong> {selectedRestaurant.cuisine}</p>
                 <p className="text-gray-600 text-sm sm:text-base hidden sm:block"><strong>Price:</strong> {getPriceSymbol(selectedRestaurant.priceLevel)}</p>
+                <p
+                  className="text-gray-400 text-xs hidden sm:block cursor-pointer hover:text-gray-600 transition"
+                  title="Click to copy Place ID"
+                  onClick={() => {
+                    navigator.clipboard.writeText(selectedRestaurant.id);
+                    alert('Place ID copied: ' + selectedRestaurant.id);
+                  }}
+                >
+                  Place ID: {selectedRestaurant.id}
+                </p>
 
                 <div className="bg-gradient-to-r from-orange-50 to-red-50 p-3 rounded-xl border-2 border-orange-200 mt-2 sm:mt-4">
                   <div className="flex items-center justify-between mb-2">
@@ -1560,6 +1628,91 @@ const loadReviews = async (restaurant) => {
                       ))}
                     </div>
                   )}
+                </div>
+              </div>
+            )}
+
+            {/* AI-Estimated Menu for Local Restaurants */}
+            {loadingLocalMenu && !chainMenuData && (
+              <div className="mb-6 text-center py-4">
+                <Loader className="w-6 h-6 animate-spin mx-auto text-purple-500" />
+                <p className="text-gray-400 text-xs mt-1">Analyzing menu...</p>
+              </div>
+            )}
+            {localMenuData && localMenuData.items.length > 0 && !chainMenuData && (
+              <div className="mb-6">
+                <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-4 border-2 border-purple-300">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Sparkles className="w-6 h-6 text-purple-600" />
+                    <div className="flex-1">
+                      <h4 className="text-lg font-bold text-purple-800">
+                        AI-Estimated Keto Menu
+                      </h4>
+                      <p className="text-xs text-purple-500">
+                        Estimates based on typical {localMenuData.cuisine || 'restaurant'} dishes
+                      </p>
+                    </div>
+                    <span className="bg-gradient-to-r from-purple-500 to-indigo-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                      AI-Estimated
+                    </span>
+                  </div>
+
+                  {localMenuData.ketoFriendliness && (
+                    <p className="text-xs text-purple-700 italic mb-3 bg-white/50 p-2 rounded border border-purple-200">
+                      <Lightbulb className="inline w-4 h-4" /> {localMenuData.ketoFriendliness}
+                    </p>
+                  )}
+
+                  <div className="space-y-2">
+                    {localMenuData.items.map((item, index) => (
+                      <div
+                        key={index}
+                        className="bg-white rounded-lg p-3 border border-purple-200 shadow-sm"
+                      >
+                        <div className="flex justify-between items-start mb-1">
+                          <div className="flex-1">
+                            <p className="font-semibold text-gray-800 text-sm">
+                              {item.name}
+                            </p>
+                            {item.description && (
+                              <p className="text-xs text-gray-500">{item.description}</p>
+                            )}
+                          </div>
+                          <span className={`text-xs font-bold px-2 py-1 rounded ${
+                            item.carbs < 10
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-yellow-100 text-yellow-700'
+                          }`}>
+                            ~{item.carbs}g carbs
+                          </span>
+                        </div>
+
+                        <div className="flex gap-3 text-xs text-gray-600">
+                          <span>~{item.calories} cal</span>
+                          <span>~{item.protein}g protein</span>
+                          <span><Flame className="inline w-3 h-3 text-orange-600" /> ~{item.fat}g fat</span>
+                        </div>
+                        {item.modification && (
+                          <p className="text-xs text-purple-600 mt-1.5 font-medium">
+                            <FileText className="inline w-4 h-4" /> Modify: "{item.modification}"
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {localMenuData.orderTips && localMenuData.orderTips.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-purple-200">
+                      <p className="text-xs font-bold text-purple-700 mb-1.5"><Lightbulb className="inline w-4 h-4" /> Ordering Tips:</p>
+                      {localMenuData.orderTips.map((tip, i) => (
+                        <p key={i} className="text-xs text-gray-600 mb-1">  {tip}</p>
+                      ))}
+                    </div>
+                  )}
+
+                  <p className="text-xs text-purple-400 mt-3 italic text-center">
+                    Nutrition values are AI estimates — actual values may vary
+                  </p>
                 </div>
               </div>
             )}
