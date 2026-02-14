@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   Search, MapPin, Utensils, Star, Navigation, Loader, Filter, X, 
   MessageSquare, Send, Award, TrendingUp, User, Target, Sparkles,
@@ -48,6 +48,9 @@ export default function App() {
   const [loadingChainMenu, setLoadingChainMenu] = useState(false);
   const [localMenuData, setLocalMenuData] = useState(null);
   const [loadingLocalMenu, setLoadingLocalMenu] = useState(false);
+
+  // Race condition protection: incremented on each loadReviews call
+  const loadRequestIdRef = useRef(0);
   const [showMobileRestaurantSearch, setShowMobileRestaurantSearch] = useState(false);
   const [showEditReviewModal, setShowEditReviewModal] = useState(false);
   const [editingReview, setEditingReview] = useState(null);
@@ -280,7 +283,19 @@ const GOOGLE_MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY || '';
     return '$'.repeat(level);
   };
 
+// Fix 4: Timeout wrapper for fetch calls
+const fetchWithTimeout = (url, options = {}, timeoutMs = 15000) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { ...options, signal: controller.signal })
+    .finally(() => clearTimeout(timeout));
+};
+
 const loadReviews = async (restaurant) => {
+  // Fix 3: Race condition protection — stale requests are discarded
+  const requestId = ++loadRequestIdRef.current;
+  const isStale = () => requestId !== loadRequestIdRef.current;
+
   setLoadingReviews(true);
   setShowDetailsModal(true);
 
@@ -298,111 +313,129 @@ const loadReviews = async (restaurant) => {
   setChainMenuData(null);
   setLocalMenuData(null);
 
-  // Track keto foods found in reviews so step B can pass them to local menu analysis
-  let analysisKetoFoods = [];
+  // Fix 1: Run [A → B] in parallel with [C]
+  // A+B: signals/analysis then menu data (sequential — B needs A's ketoFoods for locals)
+  // C: community reviews (fully independent)
 
-  try {
-    // --- A) Load signals (or create them once, then reload) ---
-    const getSignals = async () => {
-      const res = await fetch(`${BASE_URL}/api/restaurant-signals/${restaurant.id}`);
-      if (!res.ok) throw new Error(`Signals fetch failed (${res.status})`);
-      return res.json();
-    };
+  const loadSignalsAndMenu = async () => {
+    // Track keto foods found in reviews so step B can pass them to local menu analysis
+    let analysisKetoFoods = [];
 
-    let signalsPayload = await getSignals();
+    try {
+      // --- A) Analyze google reviews, then load signals ---
+      const getSignals = async () => {
+        const res = await fetchWithTimeout(`${BASE_URL}/api/restaurant-signals/${restaurant.id}`);
+        if (!res.ok) throw new Error(`Signals fetch failed (${res.status})`);
+        return res.json();
+      };
 
-    // Always analyze to get the found items (they're not stored in DB)
-    const analyzeRes = await fetch(`${BASE_URL}/api/analyze-google-reviews/${restaurant.id}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ restaurantName: restaurant.name })
-    });
+      // Fix 2: Removed redundant first getSignals() call — go straight to analysis
+      const analyzeRes = await fetchWithTimeout(`${BASE_URL}/api/analyze-google-reviews/${restaurant.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ restaurantName: restaurant.name })
+      });
 
-    if (analyzeRes.ok) {
-      const analysisData = await analyzeRes.json();
+      if (analyzeRes.ok) {
+        const analysisData = await analyzeRes.json();
+        analysisKetoFoods = analysisData.foundKetoFoods || [];
 
-      analysisKetoFoods = analysisData.foundKetoFoods || [];
+        if (isStale()) return;
 
-      // Store the found items
-      setFoundKetoFoods(analysisKetoFoods);
-      setFoundCustomizations(analysisData.foundCustomizations || []);
-      setFoundCookingMethods(analysisData.foundCookingMethods || []);
+        setFoundKetoFoods(analysisKetoFoods);
+        setFoundCustomizations(analysisData.foundCustomizations || []);
+        setFoundCookingMethods(analysisData.foundCookingMethods || []);
+      }
 
-      // Refresh signals
-      signalsPayload = await getSignals();
+      // Fetch signals after analysis completes
+      const signalsPayload = await getSignals();
+      if (isStale()) return;
+      setRestaurantSignals(signalsPayload?.signals || null);
+    } catch (err) {
+      console.error('Error loading/analyzing restaurant signals:', err);
+      if (!isStale()) setRestaurantSignals(null);
+    } finally {
+      if (!isStale()) setLoadingSignals(false);
     }
 
-    setRestaurantSignals(signalsPayload?.signals || null);
-  } catch (err) {
-    console.error('Error loading/analyzing restaurant signals:', err);
-    setRestaurantSignals(null);
-  } finally {
-    setLoadingSignals(false);
-  }
-
-  // --- B) Check for verified chain menu data, or fetch AI analysis for locals ---
-  try {
-    setLoadingChainMenu(true);
-    setLoadingLocalMenu(true);
-    const chainResponse = await fetch(
-      `${BASE_URL}/api/chain-menu/${restaurant.id}?restaurantName=${encodeURIComponent(restaurant.name)}`
-    );
-    if (chainResponse.ok) {
-      const chainData = await chainResponse.json();
-      if (chainData.isChain && chainData.items.length > 0) {
-        setChainMenuData(chainData);
-        setLoadingLocalMenu(false);
-      } else {
-        // Not a chain — fetch AI-estimated menu for this local restaurant
-        setLoadingChainMenu(false);
-        try {
-          const localResponse = await fetch(`${BASE_URL}/api/local-menu-analysis`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              restaurantName: restaurant.name,
-              cuisine: restaurant.cuisine,
-              reviewSnippets: analysisKetoFoods.length > 0 ? analysisKetoFoods : undefined
-            })
-          });
-          if (localResponse.ok) {
-            const localData = await localResponse.json();
-            if (localData.isLocal && localData.items && localData.items.length > 0) {
-              setLocalMenuData(localData);
-            }
-          }
-        } catch (localErr) {
-          console.error('Error fetching local menu analysis:', localErr);
-        } finally {
+    // --- B) Check for verified chain menu data, or fetch AI analysis for locals ---
+    try {
+      if (isStale()) return;
+      setLoadingChainMenu(true);
+      setLoadingLocalMenu(true);
+      const chainResponse = await fetchWithTimeout(
+        `${BASE_URL}/api/chain-menu/${restaurant.id}?restaurantName=${encodeURIComponent(restaurant.name)}`
+      );
+      if (chainResponse.ok) {
+        const chainData = await chainResponse.json();
+        if (isStale()) return;
+        if (chainData.isChain && chainData.items.length > 0) {
+          setChainMenuData(chainData);
           setLoadingLocalMenu(false);
+        } else {
+          // Not a chain — fetch AI-estimated menu for this local restaurant
+          setLoadingChainMenu(false);
+          try {
+            const localResponse = await fetchWithTimeout(`${BASE_URL}/api/local-menu-analysis`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                restaurantName: restaurant.name,
+                cuisine: restaurant.cuisine,
+                reviewSnippets: analysisKetoFoods.length > 0 ? analysisKetoFoods : undefined
+              })
+            });
+            if (localResponse.ok) {
+              const localData = await localResponse.json();
+              if (!isStale() && localData.isLocal && localData.items && localData.items.length > 0) {
+                setLocalMenuData(localData);
+              }
+            }
+          } catch (localErr) {
+            console.error('Error fetching local menu analysis:', localErr);
+          } finally {
+            if (!isStale()) setLoadingLocalMenu(false);
+          }
         }
       }
+    } catch (err) {
+      // Fix 5: Log errors instead of silently swallowing them
+      console.error('Error loading chain/local menu data:', err);
+    } finally {
+      if (!isStale()) {
+        setLoadingChainMenu(false);
+        setLoadingLocalMenu(false);
+      }
     }
-  } catch (err) {
-  } finally {
-    setLoadingChainMenu(false);
-    setLoadingLocalMenu(false);
-  }
+  };
 
-  // --- C) Load community reviews ---
-  try {
-    const response = await fetch(`${BASE_URL}/api/reviews/${restaurant.id}`);
-    if (!response.ok) throw new Error(`Reviews fetch failed (${response.status})`);
+  const loadCommunityReviews = async () => {
+    // --- C) Load community reviews ---
+    try {
+      const response = await fetchWithTimeout(`${BASE_URL}/api/reviews/${restaurant.id}`);
+      if (!response.ok) throw new Error(`Reviews fetch failed (${response.status})`);
 
-    const data = await response.json();
-    setReviews(data.reviews || []);
-    setKetoItems(data.ketoItems || []);
+      const data = await response.json();
+      if (isStale()) return;
+      setReviews(data.reviews || []);
+      setKetoItems(data.ketoItems || []);
 
-    if (!data.ketoItems || data.ketoItems.length === 0) {
-      fetchAiSuggestions(restaurant);
+      if (!data.ketoItems || data.ketoItems.length === 0) {
+        fetchAiSuggestions(restaurant);
+      }
+    } catch (error) {
+      console.error('Error loading reviews:', error);
+      if (!isStale()) {
+        setReviews([]);
+        setKetoItems([]);
+      }
+    } finally {
+      if (!isStale()) setLoadingReviews(false);
     }
-  } catch (error) {
-    console.error('Error loading reviews:', error);
-    setReviews([]);
-    setKetoItems([]);
-  } finally {
-    setLoadingReviews(false);
-  }
+  };
+
+  // Run A+B and C in parallel
+  await Promise.all([loadSignalsAndMenu(), loadCommunityReviews()]);
 };
   const fetchAiSuggestions = async (restaurant) => {
     if (!restaurant) return;
