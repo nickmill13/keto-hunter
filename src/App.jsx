@@ -291,6 +291,35 @@ const fetchWithTimeout = (url, options = {}, timeoutMs = 15000) => {
     .finally(() => clearTimeout(timeout));
 };
 
+const CACHE_PREFIX = 'keto-cache:';
+const CHAIN_MENU_TTL = 30 * 24 * 60 * 60 * 1000;  // 30 days
+const LOCAL_MENU_TTL = 7 * 24 * 60 * 60 * 1000;    // 7 days
+
+const getCachedData = (key) => {
+  try {
+    const raw = localStorage.getItem(CACHE_PREFIX + key);
+    if (!raw) return null;
+    const { data, timestamp, ttl } = JSON.parse(raw);
+    if (Date.now() - timestamp > ttl) {
+      localStorage.removeItem(CACHE_PREFIX + key);
+      return null;
+    }
+    return data;
+  } catch { return null; }
+};
+
+const setCachedData = (key, data, ttl) => {
+  try {
+    localStorage.setItem(CACHE_PREFIX + key, JSON.stringify({ data, timestamp: Date.now(), ttl }));
+  } catch { /* quota exceeded — silently skip */ }
+};
+
+const clearMenuCache = () => {
+  Object.keys(localStorage)
+    .filter(k => k.startsWith(CACHE_PREFIX))
+    .forEach(k => localStorage.removeItem(k));
+};
+
 const loadReviews = async (restaurant) => {
   // Fix 3: Race condition protection — stale requests are discarded
   const requestId = ++loadRequestIdRef.current;
@@ -363,38 +392,64 @@ const loadReviews = async (restaurant) => {
       if (isStale()) return;
       setLoadingChainMenu(true);
       setLoadingLocalMenu(true);
-      const chainResponse = await fetchWithTimeout(
-        `${BASE_URL}/api/chain-menu/${restaurant.id}?restaurantName=${encodeURIComponent(restaurant.name)}`
-      );
-      if (chainResponse.ok) {
-        const chainData = await chainResponse.json();
-        if (isStale()) return;
-        if (chainData.isChain && chainData.items.length > 0) {
-          setChainMenuData(chainData);
-          setLoadingLocalMenu(false);
-        } else {
-          // Not a chain — fetch AI-estimated menu for this local restaurant
+
+      // Check chain menu cache first
+      const chainCacheKey = `chain-menu:${restaurant.id}`;
+      const cachedChain = getCachedData(chainCacheKey);
+      if (cachedChain) {
+        if (!isStale()) {
+          setChainMenuData(cachedChain);
           setLoadingChainMenu(false);
-          try {
-            const localResponse = await fetchWithTimeout(`${BASE_URL}/api/local-menu-analysis`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                restaurantName: restaurant.name,
-                cuisine: restaurant.cuisine,
-                reviewSnippets: analysisKetoFoods.length > 0 ? analysisKetoFoods : undefined
-              })
-            });
-            if (localResponse.ok) {
-              const localData = await localResponse.json();
-              if (!isStale() && localData.isLocal && localData.items && localData.items.length > 0) {
-                setLocalMenuData(localData);
+          setLoadingLocalMenu(false);
+        }
+      } else {
+        // Check local menu cache before hitting network
+        const localCacheKey = `local-menu:${restaurant.id}`;
+        const cachedLocal = getCachedData(localCacheKey);
+        if (cachedLocal) {
+          if (!isStale()) {
+            setLocalMenuData(cachedLocal);
+            setLoadingChainMenu(false);
+            setLoadingLocalMenu(false);
+          }
+        } else {
+          // No cache — fetch from network
+          const chainResponse = await fetchWithTimeout(
+            `${BASE_URL}/api/chain-menu/${restaurant.id}?restaurantName=${encodeURIComponent(restaurant.name)}`
+          );
+          if (chainResponse.ok) {
+            const chainData = await chainResponse.json();
+            if (isStale()) return;
+            if (chainData.isChain && chainData.items.length > 0) {
+              setChainMenuData(chainData);
+              setCachedData(chainCacheKey, chainData, CHAIN_MENU_TTL);
+              setLoadingLocalMenu(false);
+            } else {
+              // Not a chain — fetch AI-estimated menu for this local restaurant
+              setLoadingChainMenu(false);
+              try {
+                const localResponse = await fetchWithTimeout(`${BASE_URL}/api/local-menu-analysis`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    restaurantName: restaurant.name,
+                    cuisine: restaurant.cuisine,
+                    reviewSnippets: analysisKetoFoods.length > 0 ? analysisKetoFoods : undefined
+                  })
+                });
+                if (localResponse.ok) {
+                  const localData = await localResponse.json();
+                  if (!isStale() && localData.isLocal && localData.items && localData.items.length > 0) {
+                    setLocalMenuData(localData);
+                    setCachedData(localCacheKey, localData, LOCAL_MENU_TTL);
+                  }
+                }
+              } catch (localErr) {
+                console.error('Error fetching local menu analysis:', localErr);
+              } finally {
+                if (!isStale()) setLoadingLocalMenu(false);
               }
             }
-          } catch (localErr) {
-            console.error('Error fetching local menu analysis:', localErr);
-          } finally {
-            if (!isStale()) setLoadingLocalMenu(false);
           }
         }
       }
