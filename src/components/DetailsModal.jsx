@@ -1,10 +1,12 @@
 import React from 'react';
 import {
   Star, MapPin, Navigation, X, Loader, Award, Sparkles, Flame, Pencil,
-  CheckCircle, Lightbulb, FileText, MessageSquare, User
+  CheckCircle, Lightbulb, FileText, MessageSquare, User, Plus, Minus
 } from 'lucide-react';
 import { SignedIn, SignedOut, SignInButton } from '@clerk/clerk-react';
 import { getPriceSymbol, confidenceLabel } from '../utils';
+import useMealBuilder from '../hooks/useMealBuilder';
+import MealBuilderFooter from './MealBuilderFooter';
 
 const DetailsModal = ({
   selectedRestaurant,
@@ -17,9 +19,12 @@ const DetailsModal = ({
   isSignedIn, user,
   onClose, onAddReview, onEditReview, onDeleteReview
 }) => {
+  const meal = useMealBuilder();
+
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center z-50">
-      <div className="bg-white w-full sm:max-w-2xl sm:rounded-2xl rounded-t-3xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto shadow-2xl border-t-2 sm:border-2 border-orange-200">
+      <div className="bg-white w-full sm:max-w-2xl sm:rounded-2xl rounded-t-3xl max-h-[95vh] sm:max-h-[90vh] flex flex-col shadow-2xl border-t-2 sm:border-2 border-orange-200">
+        <div className="flex-1 overflow-y-auto min-h-0">
         <div className="sticky top-0 bg-white px-4 sm:px-6 py-4 border-b border-gray-100 flex justify-between items-center z-10">
           <h3 className="text-lg sm:text-2xl font-black text-gray-800 truncate pr-2">
             {selectedRestaurant.name}
@@ -179,6 +184,35 @@ const DetailsModal = ({
                           <FileText className="inline w-5 h-5" /> Say: "{item.orderAs}"
                         </p>
                       )}
+
+                      <div className="mt-2 pt-2 border-t border-emerald-100">
+                        {meal.isInMeal(item.name) ? (
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => meal.decrementItem(item.name.toLowerCase().trim().replace(/\s+/g, '-'))}
+                              className="w-8 h-8 rounded-full bg-emerald-100 hover:bg-emerald-200 flex items-center justify-center active:scale-90 transition"
+                            >
+                              <Minus className="w-4 h-4 text-emerald-700" />
+                            </button>
+                            <span className="text-sm font-bold text-emerald-700 w-6 text-center">
+                              {meal.getQuantity(item.name)}
+                            </span>
+                            <button
+                              onClick={() => meal.incrementItem(item.name.toLowerCase().trim().replace(/\s+/g, '-'))}
+                              className="w-8 h-8 rounded-full bg-emerald-100 hover:bg-emerald-200 flex items-center justify-center active:scale-90 transition"
+                            >
+                              <Plus className="w-4 h-4 text-emerald-700" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => meal.addItem(item, false)}
+                            className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-3 py-1.5 rounded-lg text-xs font-semibold active:scale-95 transition flex items-center gap-1"
+                          >
+                            <Plus className="w-3.5 h-3.5" /> Add to Meal
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -260,6 +294,35 @@ const DetailsModal = ({
                           <FileText className="inline w-4 h-4" /> Modify: "{item.modification}"
                         </p>
                       )}
+
+                      <div className="mt-2 pt-2 border-t border-purple-100">
+                        {meal.isInMeal(item.name) ? (
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => meal.decrementItem(item.name.toLowerCase().trim().replace(/\s+/g, '-'))}
+                              className="w-8 h-8 rounded-full bg-purple-100 hover:bg-purple-200 flex items-center justify-center active:scale-90 transition"
+                            >
+                              <Minus className="w-4 h-4 text-purple-700" />
+                            </button>
+                            <span className="text-sm font-bold text-purple-700 w-6 text-center">
+                              {meal.getQuantity(item.name)}
+                            </span>
+                            <button
+                              onClick={() => meal.incrementItem(item.name.toLowerCase().trim().replace(/\s+/g, '-'))}
+                              className="w-8 h-8 rounded-full bg-purple-100 hover:bg-purple-200 flex items-center justify-center active:scale-90 transition"
+                            >
+                              <Plus className="w-4 h-4 text-purple-700" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => meal.addItem(item, true)}
+                            className="bg-purple-100 text-purple-700 hover:bg-purple-200 px-3 py-1.5 rounded-lg text-xs font-semibold active:scale-95 transition flex items-center gap-1"
+                          >
+                            <Plus className="w-3.5 h-3.5" /> Add to Meal
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -420,6 +483,8 @@ const DetailsModal = ({
             )}
           </div>
         </div>
+        </div>
+        <MealBuilderFooter meal={meal} />
       </div>
     </div>
   );
