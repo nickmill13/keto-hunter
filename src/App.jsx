@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Utensils, Star, Loader, TrendingUp, User, Flame,
-  Map, FileText, DollarSign, Hand, Award
+  Map, FileText, DollarSign, Hand, Award, Download, X
 } from 'lucide-react';
 import {
   SignedIn,
@@ -54,6 +54,38 @@ export default function App() {
     cuisineTypes: [],
     minKetoScore: 0
   });
+
+  // PWA install prompt
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+
+  useEffect(() => {
+    const handler = (e) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+      // Only show if user hasn't dismissed before
+      if (!localStorage.getItem('pwa-install-dismissed')) {
+        setShowInstallBanner(true);
+      }
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstall = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const result = await installPrompt.userChoice;
+    if (result.outcome === 'accepted') {
+      setShowInstallBanner(false);
+    }
+    setInstallPrompt(null);
+  };
+
+  const dismissInstallBanner = () => {
+    setShowInstallBanner(false);
+    localStorage.setItem('pwa-install-dismissed', 'true');
+  };
 
   // Hooks
   const restaurantData = useRestaurantData();
@@ -246,6 +278,33 @@ export default function App() {
         button, a, input[type="checkbox"], input[type="radio"] { min-height: 44px; }
         html { -webkit-text-size-adjust: 100%; }
       `}</style>
+
+      {/* PWA Install Banner */}
+      {showInstallBanner && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 p-4 pb-safe">
+          <div className="max-w-lg mx-auto bg-white rounded-2xl shadow-2xl border-2 border-orange-200 p-4 flex items-center gap-3">
+            <div className="bg-gradient-to-br from-orange-400 to-red-500 rounded-xl p-2.5 flex-shrink-0">
+              <Download className="w-6 h-6 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-gray-900 text-sm">Install Keto Hunter</p>
+              <p className="text-gray-500 text-xs">Add to home screen for the best experience</p>
+            </div>
+            <button
+              onClick={handleInstall}
+              className="px-4 py-2 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-bold text-sm shadow-md hover:from-orange-600 hover:to-red-600 active:scale-95 transition flex-shrink-0"
+            >
+              Install
+            </button>
+            <button
+              onClick={dismissInstallBanner}
+              className="p-1 text-gray-400 hover:text-gray-600 flex-shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Decorative background */}
       <div className="hidden md:block absolute inset-0 overflow-hidden pointer-events-none opacity-10">
