@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   Star, MapPin, Navigation, X, Loader, Award, Sparkles, Flame, Pencil,
-  CheckCircle, Lightbulb, FileText, MessageSquare, User, Plus, Minus
+  CheckCircle, Lightbulb, FileText, MessageSquare, User, Plus, Minus, Heart
 } from 'lucide-react';
 import { SignedIn, SignedOut, SignInButton } from '@clerk/clerk-react';
 import { getPriceSymbol, confidenceLabel } from '../utils';
@@ -17,6 +17,7 @@ const DetailsModal = ({
   ketoItems, aiSuggestions, loadingAiSuggestions,
   reviews, loadingReviews,
   isSignedIn, user,
+  isFavorited, onToggleFavorite,
   onClose, onAddReview, onEditReview, onDeleteReview
 }) => {
   const meal = useMealBuilder();
@@ -26,9 +27,20 @@ const DetailsModal = ({
       <div className="bg-white w-full sm:max-w-2xl sm:rounded-2xl rounded-t-3xl max-h-[95vh] sm:max-h-[90vh] flex flex-col shadow-2xl border-t-2 sm:border-2 border-orange-200">
         <div className="flex-1 overflow-y-auto min-h-0">
         <div className="sticky top-0 bg-white px-4 sm:px-6 py-4 border-b border-gray-100 flex justify-between items-center z-10">
-          <h3 className="text-lg sm:text-2xl font-black text-gray-800 truncate pr-2">
-            {selectedRestaurant.name}
-          </h3>
+          <div className="flex items-center gap-2 min-w-0 flex-1 pr-2">
+            <h3 className="text-lg sm:text-2xl font-black text-gray-800 truncate">
+              {selectedRestaurant.name}
+            </h3>
+            {isSignedIn && (
+              <button
+                onClick={() => onToggleFavorite(selectedRestaurant)}
+                className="p-1.5 rounded-full hover:bg-red-50 active:scale-90 transition shrink-0"
+                title={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
+              >
+                <Heart className={`w-5 h-5 transition-colors ${isFavorited ? 'text-red-500 fill-current' : 'text-gray-300 hover:text-red-300'}`} />
+              </button>
+            )}
+          </div>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 active:scale-90 transition p-2 -mr-2"

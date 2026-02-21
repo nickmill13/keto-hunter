@@ -1,8 +1,8 @@
 import React from 'react';
-import { MapPin, Star, Navigation, Flame } from 'lucide-react';
+import { MapPin, Star, Navigation, Flame, Heart } from 'lucide-react';
 import { getPriceSymbol } from '../utils';
 
-const RestaurantCard = ({ restaurant, onViewDetails }) => {
+const RestaurantCard = ({ restaurant, onViewDetails, isFavorited, onToggleFavorite, isSignedIn }) => {
   return (
     <div
       className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl p-3 sm:p-6 border-2 border-orange-100 active:scale-[0.98] transition-transform cursor-pointer sm:cursor-default"
@@ -29,9 +29,23 @@ const RestaurantCard = ({ restaurant, onViewDetails }) => {
               </div>
             </div>
           </div>
-          <div className="bg-gradient-to-br from-orange-500 to-red-500 text-white px-2 py-1 rounded-lg shadow-lg shrink-0 text-center">
-            <div className="text-xs font-bold text-orange-200 leading-none">KETO</div>
-            <div className="text-base font-black leading-tight">{Math.round(restaurant.ketoScore * 100)}%</div>
+          <div className="flex items-start gap-2 shrink-0">
+            {isSignedIn && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleFavorite(restaurant);
+                }}
+                className="p-1.5 rounded-full hover:bg-red-50 active:scale-90 transition"
+                title={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
+              >
+                <Heart className={`w-5 h-5 transition-colors ${isFavorited ? 'text-red-500 fill-current' : 'text-gray-300 hover:text-red-300'}`} />
+              </button>
+            )}
+            <div className="bg-gradient-to-br from-orange-500 to-red-500 text-white px-2 py-1 rounded-lg shadow-lg text-center">
+              <div className="text-xs font-bold text-orange-200 leading-none">KETO</div>
+              <div className="text-base font-black leading-tight">{Math.round(restaurant.ketoScore * 100)}%</div>
+            </div>
           </div>
         </div>
 

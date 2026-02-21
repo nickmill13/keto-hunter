@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Utensils, Star, Loader, TrendingUp, User, Flame,
-  Map, FileText, DollarSign, Hand, Award, Download, X
+  Map, FileText, DollarSign, Hand, Award, Download, X, Heart
 } from 'lucide-react';
 import {
   SignedIn,
@@ -18,6 +18,7 @@ import { GOOGLE_MAPS_KEY, DEMO_RESTAURANTS } from './constants';
 import { getPriceSymbol } from './utils';
 import useRestaurantData from './hooks/useRestaurantData';
 import useReviews from './hooks/useReviews';
+import useFavorites from './hooks/useFavorites';
 
 import MapView from './components/MapView';
 import SearchCard from './components/SearchCard';
@@ -87,7 +88,11 @@ export default function App() {
     localStorage.setItem('pwa-install-dismissed', 'true');
   };
 
+  // Favorites view state
+  const [showFavorites, setShowFavorites] = useState(false);
+
   // Hooks
+  const favoriteActions = useFavorites({ isSignedIn, getToken });
   const restaurantData = useRestaurantData();
   const reviewActions = useReviews({
     isSignedIn, user, getToken, selectedRestaurant,
@@ -336,6 +341,17 @@ export default function App() {
           </SignedOut>
           <SignedIn>
             <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowFavorites(!showFavorites)}
+                className={`px-3 py-2 rounded-xl font-semibold text-sm transition shadow-lg flex items-center gap-1.5 ${
+                  showFavorites
+                    ? 'bg-red-500 text-white'
+                    : 'bg-white/90 hover:bg-white text-red-500'
+                }`}
+              >
+                <Heart className={`w-4 h-4 ${showFavorites ? 'fill-current' : ''}`} />
+                <span className="hidden sm:inline">Favorites</span>
+              </button>
               <span className="text-white/90 text-sm font-medium hidden sm:block">
                 Hey, {user?.firstName || 'Keto Hunter'}! <Hand className="inline w-4 h-4 ml-1" />
               </span>
@@ -427,8 +443,53 @@ export default function App() {
           />
         )}
 
+        {/* Favorites View */}
+        {showFavorites && isSignedIn && (
+          <div>
+            <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
+              <Heart className="w-5 h-5 sm:w-7 sm:h-7 text-red-300 fill-current" />
+              <h2 className="text-lg sm:text-3xl font-black text-white drop-shadow-lg">
+                My Favorites ({favoriteActions.favoritesList.length})
+              </h2>
+            </div>
+
+            {favoriteActions.loadingFavorites ? (
+              <div className="text-center py-12">
+                <Loader className="w-8 h-8 animate-spin mx-auto text-white" />
+                <p className="text-white/80 mt-2">Loading favorites...</p>
+              </div>
+            ) : favoriteActions.favoritesList.length === 0 ? (
+              <div className="text-center py-12">
+                <Heart className="w-16 h-16 text-white/30 mx-auto mb-4" />
+                <h3 className="text-xl font-bold text-white mb-2">No favorites yet</h3>
+                <p className="text-white/80">Search for restaurants and tap the heart to save your favorites!</p>
+              </div>
+            ) : (
+              <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
+                {favoriteActions.favoritesList.map((fav) => {
+                  const restaurant = {
+                    id: fav.restaurant_id,
+                    name: fav.restaurant_name,
+                    ...(fav.restaurant_data || {})
+                  };
+                  return (
+                    <RestaurantCard
+                      key={fav.restaurant_id}
+                      restaurant={restaurant}
+                      onViewDetails={() => handleRestaurantClick(restaurant)}
+                      isFavorited={true}
+                      onToggleFavorite={favoriteActions.toggleFavorite}
+                      isSignedIn={isSignedIn}
+                    />
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Results */}
-        {restaurants.length > 0 && (
+        {!showFavorites && restaurants.length > 0 && (
           <div>
             <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
               <TrendingUp className="w-5 h-5 sm:w-7 sm:h-7 text-yellow-300" />
@@ -476,6 +537,9 @@ export default function App() {
                     key={restaurant.id}
                     restaurant={restaurant}
                     onViewDetails={() => handleRestaurantClick(restaurant)}
+                    isFavorited={favoriteActions.favorites.has(restaurant.id)}
+                    onToggleFavorite={favoriteActions.toggleFavorite}
+                    isSignedIn={isSignedIn}
                   />
                 ))}
               </div>
@@ -500,7 +564,7 @@ export default function App() {
         )}
 
         {/* Empty state */}
-        {!loading && restaurants.length === 0 && !error && (
+        {!showFavorites && !loading && restaurants.length === 0 && !error && (
           <div className="text-center py-8 sm:py-16">
             <div className="relative inline-block mb-4 sm:mb-6">
               <div className="absolute -inset-3 bg-white/20 rounded-full blur-lg"></div>
@@ -547,6 +611,8 @@ export default function App() {
           loadingReviews={restaurantData.loadingReviews}
           isSignedIn={isSignedIn}
           user={user}
+          isFavorited={favoriteActions.favorites.has(selectedRestaurant.id)}
+          onToggleFavorite={favoriteActions.toggleFavorite}
           onClose={() => {
             setShowDetailsModal(false);
             restaurantData.clearRestaurantData();
