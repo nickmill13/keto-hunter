@@ -4,7 +4,7 @@ import { Search, MapPin, Navigation, Filter, Loader } from 'lucide-react';
 const SearchCard = ({
   location, setLocation, restaurantQuery, setRestaurantQuery,
   loading, error, showFilters, setShowFilters, filters,
-  onSearch, onGetCurrentLocation, onNearMe
+  onSearch, onNearMe
 }) => {
   const [showMobileRestaurantSearch, setShowMobileRestaurantSearch] = useState(false);
 
@@ -31,10 +31,10 @@ const SearchCard = ({
           </div>
 
           <button
-            onClick={onGetCurrentLocation}
+            onClick={onNearMe}
             disabled={loading}
-            className="p-3 bg-orange-100 hover:bg-orange-200 text-orange-800 rounded-xl active:scale-95 transition border-2 border-orange-200 disabled:opacity-50 flex items-center justify-center"
-            title="Use My Location"
+            className="p-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-xl active:scale-95 transition disabled:opacity-50 flex items-center justify-center"
+            title="Near Me"
           >
             <Navigation className="w-5 h-5" />
           </button>
@@ -88,31 +88,20 @@ const SearchCard = ({
           )}
         </div>
 
-        <div className="flex gap-2">
-          <button
-            onClick={onSearch}
-            disabled={loading}
-            className="flex-1 px-6 py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl hover:from-orange-600 hover:to-red-600 active:scale-95 transition flex items-center justify-center gap-2 disabled:opacity-50 font-bold text-base shadow-lg"
-          >
-            {loading ? (
-              <Loader className="w-5 h-5 animate-spin" />
-            ) : (
-              <>
-                <Search className="w-5 h-5" />
-                <span>Start Hunt</span>
-              </>
-            )}
-          </button>
-
-          <button
-            onClick={onNearMe}
-            disabled={loading}
-            className="px-4 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:from-green-600 hover:to-emerald-700 active:scale-95 transition flex items-center justify-center gap-2 disabled:opacity-50 font-bold text-base shadow-lg whitespace-nowrap"
-          >
-            <Navigation className="w-5 h-5" />
-            <span>Near Me</span>
-          </button>
-        </div>
+        <button
+          onClick={onSearch}
+          disabled={loading}
+          className="w-full px-6 py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl hover:from-orange-600 hover:to-red-600 active:scale-95 transition flex items-center justify-center gap-2 disabled:opacity-50 font-bold text-base shadow-lg"
+        >
+          {loading ? (
+            <Loader className="w-5 h-5 animate-spin" />
+          ) : (
+            <>
+              <Search className="w-5 h-5" />
+              <span>Start Hunt</span>
+            </>
+          )}
+        </button>
 
         {error && (
           <div className="bg-red-50 border-2 border-red-300 text-red-700 px-4 py-3 rounded-xl font-medium text-sm sm:text-base">

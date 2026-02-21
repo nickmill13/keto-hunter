@@ -208,32 +208,6 @@ export default function App() {
     }
   };
 
-  const getCurrentLocation = () => {
-    if (navigator.geolocation) {
-      setLoading(true);
-      setError(null);
-
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const coords = {
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude
-          };
-          setLocation('Current Location');
-          setCurrentCoordinates(coords);
-          searchByCoordinates(coords.latitude, coords.longitude);
-        },
-        (error) => {
-          console.error('Geolocation error:', error);
-          setError('Unable to get your location. Please enter a location manually.');
-          setLoading(false);
-        }
-      );
-    } else {
-      setError('Geolocation is not supported by your browser.');
-    }
-  };
-
   const handleSearch = async () => {
     if (!location.trim()) {
       setError('Please enter a location');
@@ -501,7 +475,6 @@ export default function App() {
           setShowFilters={setShowFilters}
           filters={filters}
           onSearch={handleSearch}
-          onGetCurrentLocation={getCurrentLocation}
           onNearMe={handleNearMe}
         />
 
