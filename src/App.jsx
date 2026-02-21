@@ -20,6 +20,8 @@ import useRestaurantData from './hooks/useRestaurantData';
 import useReviews from './hooks/useReviews';
 import useFavorites from './hooks/useFavorites';
 
+import { trackEvent } from './utils/analytics';
+import AdminDashboard from './components/AdminDashboard';
 import MapView from './components/MapView';
 import SearchCard from './components/SearchCard';
 import FiltersPanel from './components/FiltersPanel';
@@ -88,6 +90,27 @@ export default function App() {
     localStorage.setItem('pwa-install-dismissed', 'true');
   };
 
+  // Analytics: track page view on mount
+  useEffect(() => {
+    trackEvent('page_view');
+  }, []);
+
+  // Admin mode
+  const [adminMode, setAdminMode] = useState(false);
+  const [adminKey, setAdminKey] = useState(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('admin')) {
+      const key = sessionStorage.getItem('admin_key') || window.prompt('Enter admin key:');
+      if (key) {
+        sessionStorage.setItem('admin_key', key);
+        setAdminKey(key);
+        setAdminMode(true);
+      }
+    }
+  }, []);
+
   // Favorites view state
   const [showFavorites, setShowFavorites] = useState(false);
 
@@ -152,6 +175,13 @@ export default function App() {
 
       console.log(`[FRONTEND] Backend returned ${data.restaurants?.length || 0} restaurants`);
       console.log(`[FRONTEND] Search radius: ${filters.maxDistance} miles`);
+
+      trackEvent('search', {
+        query: restaurantQuery || null,
+        location: location || null,
+        resultCount: data.restaurants?.length || 0,
+        radius: filters.maxDistance
+      });
 
       const filtered = applyFilters(data.restaurants || []);
       console.log(`[FRONTEND] After filtering: ${filtered.length} restaurants`);
@@ -262,6 +292,10 @@ export default function App() {
     restaurantData.loadReviews(restaurant);
   };
 
+  if (adminMode && adminKey) {
+    return <AdminDashboard adminKey={adminKey} onExit={() => { setAdminMode(false); window.history.replaceState({}, '', window.location.pathname); }} />;
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-400 via-red-400 to-pink-500 pb-safe">
       <style>{`
@@ -368,7 +402,19 @@ export default function App() {
 
         {/* Header */}
         <div className="text-center mb-4 sm:mb-8">
-          <div className="flex items-center justify-center gap-3 sm:flex-col sm:gap-0 mb-2 sm:mb-4">
+          <div
+            className="flex items-center justify-center gap-3 sm:flex-col sm:gap-0 mb-2 sm:mb-4 cursor-pointer"
+            onClick={() => {
+              setRestaurants([]);
+              setAllRestaurants([]);
+              setLocation('');
+              setRestaurantQuery('');
+              setError(null);
+              setShowFavorites(false);
+              setSelectedRestaurant(null);
+              setShowDetailsModal(false);
+            }}
+          >
             <div className="relative sm:mb-3">
               <div className="absolute -inset-2 bg-gradient-to-r from-orange-300 to-yellow-400 rounded-full blur opacity-75"></div>
               <div className="relative bg-white rounded-full p-2 sm:p-4 shadow-xl">
