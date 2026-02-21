@@ -273,6 +273,30 @@ export default function App() {
     }
   };
 
+  const handleNearMe = () => {
+    if (navigator.geolocation) {
+      setLoading(true);
+      setError(null);
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          setLocation('Current Location');
+          setCurrentCoordinates({ latitude: lat, longitude: lng });
+          searchByCoordinates(lat, lng);
+        },
+        (error) => {
+          console.error('Geolocation error:', error);
+          setError('Unable to get your location. Please enter a location manually.');
+          setLoading(false);
+        }
+      );
+    } else {
+      setError('Geolocation is not supported by your browser.');
+    }
+  };
+
   const toggleFilter = (filterType, value) => {
     setFilters(prev => {
       const current = prev[filterType];
@@ -478,6 +502,7 @@ export default function App() {
           filters={filters}
           onSearch={handleSearch}
           onGetCurrentLocation={getCurrentLocation}
+          onNearMe={handleNearMe}
         />
 
         {/* Filters */}
