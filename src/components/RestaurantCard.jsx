@@ -62,6 +62,28 @@ const RestaurantCard = ({ restaurant, onViewDetails, isFavorited, onToggleFavori
           )}
         </div>
 
+        {restaurant.dietaryTags && restaurant.dietaryTags.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-1">
+            {restaurant.dietaryTags.map(tag => {
+              const colors = {
+                'Gluten-free': 'bg-green-100 text-green-700',
+                'Dairy-free': 'bg-blue-100 text-blue-700',
+                'Nut-free': 'bg-amber-100 text-amber-700',
+                'Carnivore': 'bg-red-100 text-red-700',
+                'Paleo': 'bg-emerald-100 text-emerald-700'
+              };
+              return (
+                <span
+                  key={tag}
+                  className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${colors[tag] || 'bg-gray-100 text-gray-600'}`}
+                >
+                  {tag}
+                </span>
+              );
+            })}
+          </div>
+        )}
+
         <p className="text-gray-500 text-xs sm:text-sm truncate">{restaurant.address}</p>
       </div>
 

@@ -7,6 +7,10 @@ export const cuisineOptions = [
   'Bar & Grill', 'Fast Food', 'Burgers', 'Sandwiches'
 ];
 
+export const dietaryOptions = [
+  'Gluten-free', 'Dairy-free', 'Nut-free', 'Carnivore', 'Paleo'
+];
+
 export const ketoScoreOptions = [
   { label: 'Any', value: 0 },
   { label: '40%+', value: 0.4 },

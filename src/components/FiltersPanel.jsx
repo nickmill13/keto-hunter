@@ -1,6 +1,6 @@
 import React from 'react';
 import { Filter, DollarSign, Flame } from 'lucide-react';
-import { cuisineOptions, ketoScoreOptions } from '../constants';
+import { cuisineOptions, ketoScoreOptions, dietaryOptions } from '../constants';
 import { getPriceSymbol } from '../utils';
 
 const FiltersPanel = ({ filters, setFilters, toggleFilter }) => {
@@ -63,6 +63,25 @@ const FiltersPanel = ({ filters, setFilters, toggleFilter }) => {
         </div>
       </div>
 
+      <div className="mb-5 sm:mb-6">
+        <label className="block text-sm font-bold text-gray-700 mb-2"> Dietary Preferences</label>
+        <div className="flex flex-wrap gap-2">
+          {dietaryOptions.map(diet => (
+            <button
+              key={diet}
+              onClick={() => toggleFilter('dietaryPreferences', diet)}
+              className={`px-3 sm:px-4 py-2 rounded-full text-sm font-semibold transition active:scale-95 ${
+                filters.dietaryPreferences.includes(diet)
+                  ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              {diet}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="mb-4">
         <label className="block text-sm font-bold text-gray-700 mb-2"><Flame className="inline w-4 h-4 text-orange-600" /> Min Keto Score</label>
         <div className="flex gap-2">
@@ -88,6 +107,7 @@ const FiltersPanel = ({ filters, setFilters, toggleFilter }) => {
             maxDistance: 2,
             priceRange: [1, 2, 3, 4],
             cuisineTypes: [],
+            dietaryPreferences: [],
             minKetoScore: 0
           });
         }}

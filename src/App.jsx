@@ -55,6 +55,7 @@ export default function App() {
     maxDistance: 2,
     priceRange: [1, 2, 3, 4],
     cuisineTypes: [],
+    dietaryPreferences: [],
     minKetoScore: 0
   });
 
@@ -144,6 +145,12 @@ export default function App() {
       }
       if (filters.minKetoScore > 0 && restaurant.ketoScore < filters.minKetoScore) {
         return false;
+      }
+      if (filters.dietaryPreferences.length > 0) {
+        const tags = restaurant.dietaryTags || [];
+        if (!filters.dietaryPreferences.every(pref => tags.includes(pref))) {
+          return false;
+        }
       }
       return true;
     });
